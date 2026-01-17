@@ -1,0 +1,1 @@
+/home/zero/.agent/get-shit-done/workflows/discovery-phase.md
