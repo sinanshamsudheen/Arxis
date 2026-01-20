@@ -1,11 +1,10 @@
 import React from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, AlertCircle, BrainCircuit, ShieldCheck, User } from 'lucide-react';
+import { NavLink, Outlet } from 'react-router-dom';
+import { LayoutDashboard, AlertCircle, BrainCircuit, ShieldCheck, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Button } from './ui/Button';
 
 const Sidebar: React.FC = () => {
-    const location = useLocation();
-
     const navItems = [
         { href: "/", label: "Dashboard", icon: LayoutDashboard },
         { href: "/alerts", label: "Alerts", icon: AlertCircle },
@@ -13,39 +12,34 @@ const Sidebar: React.FC = () => {
     ];
 
     return (
-        <aside className="fixed top-0 left-0 z-30 h-screen w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-            <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-                <div className="flex items-center gap-2 font-mono text-lg font-bold tracking-tight">
-                    <ShieldCheck className="h-6 w-6 text-blue-500" />
-                    <span>ARXIS.AI</span>
+        <aside className="w-16 border-r border-border bg-card flex flex-col shrink-0 h-full items-center py-4 z-50">
+            <div className="mb-8">
+                <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary ring-1 ring-primary/20">
+                    <ShieldCheck className="h-6 w-6" />
                 </div>
             </div>
 
-            <div className="flex flex-col gap-1 p-4">
+            <nav className="flex flex-col gap-2 w-full px-2">
                 {navItems.map((item) => (
                     <NavLink
                         key={item.href}
                         to={item.href}
                         className={({ isActive }) => cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                            isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground"
+                            "h-10 w-10 rounded-lg flex items-center justify-center transition-all duration-200",
+                            isActive
+                                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                         )}
+                        title={item.label}
                     >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
+                        <item.icon className="h-5 w-5" />
                     </NavLink>
                 ))}
-            </div>
+            </nav>
 
-            <div className="mt-auto border-t border-sidebar-border p-4">
-                <div className="flex items-center gap-3 rounded-lg bg-sidebar-accent/50 p-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/20 text-blue-500 ring-2 ring-blue-600/10">
-                        <span className="text-xs font-bold">JS</span>
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-sm font-medium">J. Smith</span>
-                        <span className="text-xs text-muted-foreground">Senior Analyst</span>
-                    </div>
+            <div className="mt-auto flex flex-col gap-4 items-center w-full px-2">
+                <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-500 border border-blue-500/20 cursor-pointer hover:bg-blue-500/20 transition-colors">
+                    JS
                 </div>
             </div>
         </aside>
@@ -54,9 +48,9 @@ const Sidebar: React.FC = () => {
 
 const Layout: React.FC = () => {
     return (
-        <div className="min-h-screen bg-background font-sans antialiased">
+        <div className="h-screen w-screen bg-background font-sans antialiased overflow-hidden flex">
             <Sidebar />
-            <main className="ml-64 p-8">
+            <main className="flex-1 h-full overflow-hidden p-3 relative">
                 <Outlet />
             </main>
         </div>

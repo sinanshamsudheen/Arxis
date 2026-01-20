@@ -4,29 +4,45 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { MOCK_ALERTS, MOCK_SYSTEM_COMPONENTS, MOCK_COMPLIANCE } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
-import { ArrowRight, Download, Send, Activity, Info } from 'lucide-react';
+import { ArrowRight, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-// SVG Heartbeat Component
+// Ultra-Wide Heartbeat Visualization
 const HeartbeatLine = ({ color }: { color: string }) => (
-    <svg viewBox="0 0 100 24" className="h-6 w-full overflow-visible" preserveAspectRatio="none">
-        <path
-            d="M0 12 H20 L30 4 L40 20 L50 12 H100"
-            fill="none"
-            stroke={color}
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="animate-[pulse_2s_ease-in-out_infinite]"
-        />
-    </svg>
+    <div className="relative w-full h-full overflow-hidden">
+        <svg viewBox="0 0 300 24" className="w-full h-full" preserveAspectRatio="none">
+            {/* Background Grid Line */}
+            <path d="M0 12 H300" stroke={color} strokeOpacity="0.1" strokeWidth="1" />
+
+            {/* Pulse */}
+            <path
+                d="M0 12 H20 L30 4 L40 20 L50 12 H60 L70 8 L80 16 L90 12 H120 L130 2 L140 22 L150 12 H300"
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="animate-[pulse_3s_ease-in-out_infinite]"
+            />
+
+            {/* Gradient Overlay for Fade Effect */}
+            <defs>
+                <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="transparent" />
+                    <stop offset="10%" stopColor="white" />
+                    <stop offset="90%" stopColor="white" />
+                    <stop offset="100%" stopColor="transparent" />
+                </linearGradient>
+            </defs>
+        </svg>
+    </div>
 );
 
 const SEVERITY_DATA = [
-    { name: 'Critical', value: 2, color: 'hsl(0 84% 60%)' },
+    { name: 'Crit', value: 2, color: 'hsl(0 84% 60%)' },
     { name: 'High', value: 5, color: 'hsl(25 95% 53%)' },
-    { name: 'Medium', value: 12, color: 'hsl(48 96% 53%)' },
+    { name: 'Med', value: 12, color: 'hsl(48 96% 53%)' },
     { name: 'Low', value: 24, color: 'hsl(217 91% 60%)' },
 ];
 
@@ -34,196 +50,192 @@ const Dashboard: React.FC = () => {
     const [chatInput, setChatInput] = useState('');
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
+        <div className="h-full flex flex-col gap-2 animate-fade-in overflow-hidden p-1">
+            {/* Dense Header */}
+            <div className="flex items-center justify-between shrink-0 h-8 px-1">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                    <p className="text-muted-foreground mt-1">
-                        System status and security overview • {new Date().toLocaleDateString()}
+                    <h1 className="text-lg font-bold tracking-tight">Dashboard</h1>
+                    <p className="text-[10px] text-muted-foreground">
+                        <span className="text-green-500">● Online</span> • {new Date().toLocaleDateString()}
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline">Refresh Data</Button>
-                    <Button>System Check</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] px-2">Refresh</Button>
+                    <Button size="sm" className="h-7 text-[10px] px-2">System Check</Button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-6">
+            {/* Main Grid: Full Height */}
+            <div className="flex-1 min-h-0 grid grid-cols-12 grid-rows-12 gap-2">
 
-                {/* COL 1: System Heartbeat (Left, Tall) */}
-                <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
+                {/* ROW 1: Heartbeat (Extra Wide) & AI */}
+                <div className="col-span-8 row-span-7 flex flex-col min-h-0">
                     <Card
                         title="System Heartbeat"
-                        description="Real-time component latency"
-                        className="flex-1"
+                        className="flex-1 flex flex-col min-h-0 overflow-hidden"
+                        noPadding
                     >
-                        <div className="flex flex-col gap-4">
-                            {MOCK_SYSTEM_COMPONENTS.map(comp => {
-                                const isHealthy = comp.status === 'healthy';
-                                const statusColor = isHealthy ? 'hsl(142 71% 45%)' : comp.status === 'degraded' ? 'hsl(48 96% 53%)' : 'hsl(0 84% 60%)';
-                                return (
-                                    <div key={comp.id} className="group flex flex-col gap-1 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent/50 hover:border-border">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium">{comp.name}</span>
-                                            <Badge
-                                                variant={comp.status}
-                                                className="h-5 px-1.5 uppercase text-[10px]"
-                                            >
-                                                {comp.status}
-                                            </Badge>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                                                <HeartbeatLine color={statusColor} />
-                                            </div>
-                                            <span className="font-mono text-xs text-muted-foreground w-12 text-right">
-                                                {comp.latency}ms
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </Card>
+                        {/* Single Column Layout - Top to Bottom - Fixed Height Dist */}
+                        <div className="flex-1 px-4 py-2 flex flex-col min-h-0">
 
-                    <Card title="System Performance">
-                        <div className="space-y-5">
-                            {[
-                                { label: 'CPU Usage', value: 78, color: 'bg-orange-500' },
-                                { label: 'GPU Utilization', value: 45, color: 'bg-blue-500' },
-                                { label: 'Net Throughput', value: 92, color: 'bg-green-500' },
-                            ].map((item, idx) => (
-                                <div key={idx} className="space-y-1.5">
-                                    <div className="flex justify-between text-xs">
-                                        <span className="font-medium text-muted-foreground">{item.label}</span>
-                                        <span className="font-mono text-foreground">{item.value}%</span>
-                                    </div>
-                                    <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                                        <div
-                                            className={cn("h-full transition-all duration-1000", item.color)}
-                                            style={{ width: `${item.value}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
+                            {/* Header Row - Fixed */}
+                            <div className="grid grid-cols-12 text-[9px] text-muted-foreground border-b border-border/50 pb-2 mb-1 uppercase tracking-wider shrink-0">
+                                <div className="col-span-3">Service Name</div>
+                                <div className="col-span-7 pl-4">Real-time Latency Stream</div>
+                                <div className="col-span-2 text-right">Status / Ping</div>
+                            </div>
+
+                            {/* List - Flex Fill */}
+                            <div className="flex-1 flex flex-col min-h-0 justify-between">
+                                {MOCK_SYSTEM_COMPONENTS.map((comp, i) => {
+                                    const isHealthy = comp.status === 'healthy';
+                                    const statusColor = isHealthy ? 'hsl(142 71% 45%)' : comp.status === 'degraded' ? 'hsl(48 96% 53%)' : 'hsl(0 84% 60%)';
+                                    return (
+                                        <div key={comp.id} className="group relative grid grid-cols-12 items-center gap-4 py-1 flex-1 min-h-0 border-b border-border/10 last:border-0 hover:bg-muted/10 transition-colors">
+                                            {/* Col 1: Name */}
+                                            <div className="col-span-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={cn(
+                                                        "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500",
+                                                        isHealthy ? "bg-green-500" : "bg-red-500 shadow-[0_0_10px_red]"
+                                                    )}></div>
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-semibold truncate">{comp.name}</div>
+                                                        <div className="text-[9px] text-muted-foreground font-mono truncate">Uptime: 99.9%</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Col 2: Wide Waveform - Flexible Height */}
+                                            <div className="col-span-7 h-[80%] bg-secondary/10 rounded-md border border-border/30 group-hover:border-primary/30 transition-colors overflow-hidden relative">
+                                                <div className="absolute inset-x-0 bottom-0 top-0 opacity-80">
+                                                    <HeartbeatLine color={statusColor} />
+                                                </div>
+                                            </div>
+
+                                            {/* Col 3: Stats */}
+                                            <div className="col-span-2 text-right">
+                                                <div className="font-mono text-xs font-bold text-foreground">{comp.latency}ms</div>
+                                                <Badge variant={comp.status === 'down' ? 'critical' : comp.status} className="h-3.5 px-1.5 text-[8px] uppercase mt-0.5">{comp.status}</Badge>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </Card>
                 </div>
 
-                {/* COL 2: Middle - Charts & Alerts (Wide) */}
-                <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
-                    <Card title="Threat Severity" className="h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={SEVERITY_DATA} margin={{ top: 20, right: 0, left: -25, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                                <XAxis
-                                    dataKey="name"
-                                    stroke="hsl(var(--muted-foreground))"
-                                    fontSize={12}
-                                    tickLine={false}
-                                    axisLine={false}
-                                    dy={10}
-                                />
-                                <YAxis
-                                    stroke="hsl(var(--muted-foreground))"
-                                    fontSize={12}
-                                    tickLine={false}
-                                    axisLine={false}
-                                />
-                                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                    {SEVERITY_DATA.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </Card>
-
-                    <Card title="High Priority Alerts" className="flex-1 ">
-                        <div className="flex flex-col gap-3">
-                            {MOCK_ALERTS.filter(a => ['critical', 'high'].includes(a.severity)).map(alert => (
-                                <div
-                                    key={alert.id}
-                                    className="group relative flex flex-col gap-2 rounded-lg border border-border bg-card/50 p-4 transition-all hover:bg-accent hover:border-primary/20"
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant={alert.severity} className="h-5 px-1.5 uppercase text-[10px]">{alert.severity}</Badge>
-                                                <span className="text-xs text-muted-foreground">{alert.timestamp}</span>
-                                            </div>
-                                            <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{alert.title}</h4>
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-2">
-                                        {alert.description}
-                                    </p>
-
-                                    <div className="flex items-center justify-between pt-2">
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                            <Info className="h-3 w-3" />
-                                            Confidence: <span className="text-foreground font-mono">{alert.confidence}%</span>
-                                        </div>
-                                        <ArrowRight className="h-4 w-4 text-muted-foreground -translate-x-2 opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
+                <div className="col-span-4 row-span-7 flex flex-col min-h-0">
+                    <Card title="AI Analyst" className="flex-1 min-h-0 flex flex-col overflow-hidden" noPadding>
+                        <div className="flex-1 flex flex-col min-h-0">
+                            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                                <div className="flex gap-2">
+                                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs">🤖</div>
+                                    <div className="rounded-lg bg-accent p-2.5 text-[11px] text-foreground leading-relaxed shadow-sm">
+                                        Checking system logs... Detected anomalous root access attempt on <strong>db-shard-04</strong>. Suggest immediate isolation.
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-3 gap-4">
-                        {['Weekly Report', 'Monthly Report', 'Custom Export'].map((label, i) => (
-                            <Button key={i} variant="outline" className="h-auto py-4 flex flex-col items-center gap-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50">
-                                <Download className="h-4 w-4" />
-                                {label}
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* COL 3: Right - AI & Compliance */}
-                <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
-                    <Card title="AI Security Analyst" className="flex-1 flex flex-col" noPadding>
-                        <div className="flex-1 flex flex-col min-h-[400px]">
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                <div className="flex gap-3">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                        <span className="text-xs">🤖</span>
-                                    </div>
-                                    <div className="rounded-lg bg-accent p-3 text-sm text-foreground">
-                                        Hello! I’m your AI security analyst assistant. I can help you investigate alerts, explain MITRE ATT&CK tactics, and provide threat intelligence.
+                                <div className="flex gap-2 justify-end">
+                                    <div className="rounded-lg bg-primary/10 p-2.5 text-[11px] text-foreground leading-relaxed max-w-[90%] border border-primary/20">
+                                        Isolate the host and run diagnostics.
                                     </div>
                                 </div>
                             </div>
-                            <div className="p-4 border-t border-border bg-card">
+                            <div className="p-2 border-t border-border bg-card/50 shrink-0">
                                 <div className="relative">
                                     <input
-                                        className="w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        placeholder="Ask Arxis about threats..."
+                                        className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 pr-8 text-[11px] shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        placeholder="Command Arxis..."
                                         value={chatInput}
                                         onChange={(e) => setChatInput(e.target.value)}
                                     />
                                     <button className="absolute right-2 top-2 text-muted-foreground hover:text-primary">
-                                        <Send className="h-4 w-4" />
+                                        <Send className="h-3 w-3" />
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </Card>
+                </div>
 
-                    <Card title="Compliance Status">
-                        <div className="flex flex-col">
-                            {MOCK_COMPLIANCE.map((item, idx) => (
-                                <div key={idx} className="flex items-center justify-between border-b border-border py-3 last:border-0">
-                                    <span className="text-sm font-medium">{item.name}</span>
-                                    <div className="text-right">
-                                        <Badge
-                                            variant={item.status === 'compliant' ? 'healthy' : item.status === 'review_needed' ? 'degraded' : 'down'}
-                                            className="h-5 px-2 capitalize"
-                                        >
-                                            {item.status.replace('_', ' ')}
-                                        </Badge>
+                {/* ROW 2: Perf | Severity | Alerts | Compliance */}
+                <div className="col-span-2 row-span-5 flex flex-col min-h-0">
+                    <Card title="Perf" className="flex-1 min-h-0 overflow-hidden" noPadding>
+                        <div className="p-3 h-full flex flex-col justify-between gap-1">
+                            {[
+                                { label: 'CPU', value: 78, color: 'bg-orange-500' },
+                                { label: 'RAM', value: 45, color: 'bg-blue-500' },
+                                { label: 'NET', value: 92, color: 'bg-green-500' },
+                            ].map((item, idx) => (
+                                <div key={idx} className="flex-1 flex flex-col justify-center gap-1">
+                                    <div className="flex justify-between text-[10px] items-end">
+                                        <span className="text-muted-foreground font-medium">{item.label}</span>
+                                        <span className="font-mono font-bold">{item.value}%</span>
                                     </div>
+                                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                                        <div className={cn("h-full", item.color)} style={{ width: `${item.value}%` }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+
+                <div className="col-span-3 row-span-5 flex flex-col min-h-0">
+                    <Card title="Threats" className="flex-1 min-h-0 overflow-hidden" noPadding>
+                        <div className="h-full w-full p-2">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={SEVERITY_DATA} margin={{ top: 10, right: 10, left: -25, bottom: 0 }} barSize={35}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={9} tickLine={false} axisLine={false} dy={5} />
+                                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={9} tickLine={false} axisLine={false} />
+                                    <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                                        {SEVERITY_DATA.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                </div>
+
+                <div className="col-span-5 row-span-5 flex flex-col min-h-0">
+                    <Card title="High Priority Alerts" className="flex-1 min-h-0 flex flex-col overflow-hidden" noPadding>
+                        <div className="flex-1 p-2 flex flex-col gap-1.5 min-h-0 overflow-y-auto">
+                            {MOCK_ALERTS.filter(a => ['critical', 'high'].includes(a.severity)).map(alert => (
+                                <div
+                                    key={alert.id}
+                                    className="group flex flex-col gap-0.5 rounded-md border border-border/50 bg-muted/10 p-2 transition-all hover:bg-accent hover:border-primary/20 cursor-pointer justify-center shrink-0 min-h-[45px]"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5">
+                                            <Badge variant={alert.severity} className="h-3.5 px-1 uppercase text-[8px]">{alert.severity}</Badge>
+                                            <span className="text-[9px] text-muted-foreground">{alert.timestamp}</span>
+                                        </div>
+                                        <ArrowRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <h4 className="font-semibold text-xs truncate group-hover:text-primary transition-colors">{alert.title}</h4>
+                                    <p className="text-[9px] text-muted-foreground line-clamp-1 opacity-80">{alert.description}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+
+                <div className="col-span-2 row-span-5 flex flex-col min-h-0">
+                    <Card title="Compliance" className="flex-1 min-h-0 overflow-hidden" noPadding>
+                        <div className="p-3 h-full flex flex-col justify-between">
+                            {MOCK_COMPLIANCE.map((item, idx) => (
+                                <div key={idx} className="flex flex-col gap-0.5 border-b border-border/30 last:border-0 pb-1 last:pb-0 flex-1 justify-center min-h-0">
+                                    <span className="text-[10px] font-medium truncate leading-tight">{item.name}</span>
+                                    <Badge
+                                        variant={item.status === 'compliant' ? 'healthy' : item.status === 'review_needed' ? 'degraded' : 'down'}
+                                        className="h-3.5 px-1.5 text-[8px] capitalize w-fit"
+                                    >
+                                        {item.status.replace('_', ' ')}
+                                    </Badge>
                                 </div>
                             ))}
                         </div>
