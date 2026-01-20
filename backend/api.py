@@ -215,6 +215,107 @@ async def health_check():
     }
 
 
+@app.get("/metrics/realtime")
+async def get_realtime_metrics():
+    """
+    Get real-time system metrics for heartbeat visualization.
+    
+    Returns activity data for:
+    - Log Collector: based on recent log ingest rate
+    - Threat Intelligence: based on detection signals
+    - SIEM Engine: based on overall processing
+    - Alert Pipeline: based on alert creation rate
+    - Analytics Engine: based on agent processing
+    - Database: based on storage operations
+    """
+    import random
+    
+    # Get recent activity from storage
+    recent_logs = storage.get_recent_logs(100)
+    recent_alerts = storage.get_all_alerts()[-20:]
+    pending_signals = storage.get_pending_signals()
+    
+    # Calculate activity rates (events in last minute simulation)
+    log_rate = len(recent_logs) if recent_logs else 0
+    alert_rate = len(recent_alerts) if recent_alerts else 0
+    signal_rate = len(pending_signals) if pending_signals else 0
+    
+    # Generate realistic latency values based on actual activity
+    # More activity = slightly higher latency
+    def compute_latency(base: int, activity: int, variance: int = 10) -> int:
+        load_factor = min(activity / 20, 1.5)  # Cap at 1.5x
+        jitter = random.randint(-variance, variance)
+        return max(5, int(base * load_factor + jitter))
+    
+    # Generate history arrays (last 10 readings) with realistic variance
+    def generate_history(base: int, activity: int) -> list:
+        history = []
+        for _ in range(10):
+            history.append(compute_latency(base, activity, 5))
+        return history
+    
+    components = [
+        {
+            "id": "1",
+            "name": "Log Collector",
+            "status": "healthy" if log_rate > 0 else "degraded",
+            "latency": compute_latency(45, log_rate),
+            "history": generate_history(45, log_rate),
+            "activity": log_rate
+        },
+        {
+            "id": "2", 
+            "name": "Threat Intelligence",
+            "status": "healthy",
+            "latency": compute_latency(120, signal_rate),
+            "history": generate_history(120, signal_rate),
+            "activity": signal_rate
+        },
+        {
+            "id": "3",
+            "name": "SIEM Engine",
+            "status": "healthy",
+            "latency": compute_latency(85, log_rate + signal_rate),
+            "history": generate_history(85, log_rate + signal_rate),
+            "activity": log_rate + signal_rate
+        },
+        {
+            "id": "4",
+            "name": "Alert Pipeline",
+            "status": "healthy" if signal_rate == 0 else "degraded",
+            "latency": compute_latency(150, alert_rate + signal_rate * 3),
+            "history": generate_history(150, alert_rate + signal_rate * 3),
+            "activity": alert_rate
+        },
+        {
+            "id": "5",
+            "name": "Analytics Engine",
+            "status": "healthy",
+            "latency": compute_latency(310, alert_rate),
+            "history": generate_history(310, alert_rate),
+            "activity": alert_rate
+        },
+        {
+            "id": "6",
+            "name": "Database",
+            "status": "healthy",
+            "latency": compute_latency(12, log_rate + alert_rate),
+            "history": generate_history(12, log_rate + alert_rate),
+            "activity": log_rate + alert_rate
+        }
+    ]
+    
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "components": components,
+        "summary": {
+            "total_logs": log_rate,
+            "total_alerts": alert_rate,
+            "pending_signals": signal_rate
+        }
+    }
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Debug Endpoints (POC only)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

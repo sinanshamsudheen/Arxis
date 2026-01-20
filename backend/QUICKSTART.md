@@ -31,12 +31,24 @@ cp .env.example .env
 ```
 
 ### 4. Start the System
+
+**🎯 Recommended: Use main.py (All-in-One)**
 ```bash
-# Option A: Start everything at once
+python main.py
+```
+
+This starts everything you need:
+- ✅ API server (with AI agent processing)
+- ✅ Log generator (synthetic security events)
+- ✅ Detection engine (real-time threat detection)
+
+**Alternative Options:**
+```bash
+# Option A: Shell script (Linux/Mac)
 chmod +x start_all.sh
 ./start_all.sh
 
-# Option B: Start components separately
+# Option B: Manual (separate terminals)
 # Terminal 1:
 python api.py
 

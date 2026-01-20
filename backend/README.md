@@ -4,6 +4,28 @@
 
 A demonstration backend for an intelligent SOC platform that uses multi-agent AI reasoning to analyze security threats.
 
+## 🚀 Quick Start (Recommended)
+
+**Run everything with a single command:**
+
+```bash
+# From the backend directory
+python main.py
+```
+
+This will start:
+- ✅ FastAPI API server (port 8000)
+- ✅ Synthetic log generator (sending logs every 1-3s)
+- ✅ Real-time detection engine
+- ✅ Background AI agent processing (CrewAI)
+
+**Then open your frontend:**
+- Frontend dashboard: `http://localhost:5173`
+- API docs: `http://localhost:8000/docs`
+- Alerts endpoint: `http://localhost:8000/alerts`
+
+Press `Ctrl+C` to stop all services gracefully.
+
 ---
 
 ## 🎯 What This Is

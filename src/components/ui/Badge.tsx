@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-type Variant = 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'critical' | 'high' | 'medium' | 'low' | 'healthy' | 'degraded';
+type Variant = 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'critical' | 'high' | 'medium' | 'low' | 'healthy' | 'degraded' | 'down';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     variant?: Variant;

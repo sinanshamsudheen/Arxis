@@ -1,43 +1,93 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { MOCK_ALERTS, MOCK_SYSTEM_COMPONENTS, MOCK_COMPLIANCE } from '../data/mock';
+import { MOCK_ALERTS, MOCK_COMPLIANCE } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
-import { ArrowRight, Send } from 'lucide-react';
+import { ArrowRight, Send, Loader2, CheckCircle2, AlertTriangle, Shield } from 'lucide-react';
+import { Modal } from '../components/ui/Modal';
+import { Alert, SystemComponent } from '../types';
 import { cn } from '../lib/utils';
+import { fetchRealtimeMetrics, RealtimeComponent } from '../services/api';
 
-// Ultra-Wide Heartbeat Visualization
-const HeartbeatLine = ({ color }: { color: string }) => (
-    <div className="relative w-full h-full overflow-hidden">
-        <svg viewBox="0 0 300 24" className="w-full h-full" preserveAspectRatio="none">
-            {/* Background Grid Line */}
-            <path d="M0 12 H300" stroke={color} strokeOpacity="0.1" strokeWidth="1" />
+// Dynamic Heartbeat Visualization - generates SVG path from history data
+const HeartbeatLine = ({ color, history }: { color: string; history?: number[] }) => {
+    // Generate SVG path from history data
+    const pathData = useMemo(() => {
+        if (!history || history.length === 0) {
+            // Default static pulse if no data
+            return "M0 12 H20 L30 3 L40 21 L50 12 H60 L70 6 L80 18 L90 12 H120 L130 1 L140 23 L150 12 H300";
+        }
 
-            {/* Pulse */}
-            <path
-                d="M0 12 H20 L30 4 L40 20 L50 12 H60 L70 8 L80 16 L90 12 H120 L130 2 L140 22 L150 12 H300"
-                fill="none"
-                stroke={color}
-                strokeWidth="2"
-                vectorEffect="non-scaling-stroke"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="animate-[pulse_3s_ease-in-out_infinite]"
-            />
+        // Normalize history values to SVG Y coordinates (0-24 range)
+        const minVal = Math.min(...history);
+        const maxVal = Math.max(...history);
+        const range = maxVal - minVal || 1;
 
-            {/* Gradient Overlay for Fade Effect */}
-            <defs>
-                <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="transparent" />
-                    <stop offset="10%" stopColor="white" />
-                    <stop offset="90%" stopColor="white" />
-                    <stop offset="100%" stopColor="transparent" />
-                </linearGradient>
-            </defs>
-        </svg>
-    </div>
-);
+        // Map each history point to Y coordinate (inverted: higher value = lower Y)
+        const points = history.map((val, i) => {
+            const normalizedY = 2 + ((val - minVal) / range) * 20; // Y between 2-22
+            const x = (i / (history.length - 1)) * 300; // X spreads across 0-300
+            return { x, y: normalizedY };
+        });
+
+        // Create smooth SVG path with interpolation
+        let path = `M0 ${points[0]?.y || 12}`;
+
+        for (let i = 0; i < points.length; i++) {
+            const curr = points[i];
+            const next = points[i + 1];
+
+            if (next) {
+                // Add some heartbeat spikes between data points
+                const midX = (curr.x + next.x) / 2;
+                const spikeAmplitude = Math.abs(next.y - curr.y) * 0.8;
+                const spikeDir = Math.random() > 0.5 ? 1 : -1;
+
+                path += ` L${curr.x} ${curr.y}`;
+                path += ` L${midX - 5} ${12 - spikeAmplitude * spikeDir}`;
+                path += ` L${midX + 5} ${12 + spikeAmplitude * spikeDir}`;
+            } else {
+                path += ` L${curr.x} ${curr.y}`;
+            }
+        }
+
+        path += ` L300 ${points[points.length - 1]?.y || 12}`;
+
+        return path;
+    }, [history]);
+
+    return (
+        <div className="relative w-full h-full overflow-hidden">
+            <svg viewBox="0 0 300 24" className="w-full h-full" preserveAspectRatio="none">
+                {/* Background Grid Line */}
+                <path d="M0 12 H300" stroke={color} strokeOpacity="0.1" strokeWidth="1" />
+
+                {/* Dynamic Pulse */}
+                <path
+                    d={pathData}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="2"
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="transition-all duration-500"
+                />
+
+                {/* Gradient Overlay for Fade Effect */}
+                <defs>
+                    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="transparent" />
+                        <stop offset="10%" stopColor="white" />
+                        <stop offset="90%" stopColor="white" />
+                        <stop offset="100%" stopColor="transparent" />
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
+    );
+};
 
 const SEVERITY_DATA = [
     { name: 'Crit', value: 2, color: 'hsl(0 84% 60%)' },
@@ -48,6 +98,88 @@ const SEVERITY_DATA = [
 
 const Dashboard: React.FC = () => {
     const [chatInput, setChatInput] = useState('');
+    const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: React.ReactNode }[]>([
+        { role: 'ai', content: <>Checking system logs... Detected anomalous root access attempt on <strong>db-shard-04</strong>. Suggest immediate isolation.</> }
+    ]);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [showSystemCheck, setShowSystemCheck] = useState(false);
+    const [checkProgress, setCheckProgress] = useState(0);
+    const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+    const [selectedService, setSelectedService] = useState<SystemComponent | null>(null);
+
+    // Real-time system components from backend
+    const [realtimeComponents, setRealtimeComponents] = useState<RealtimeComponent[]>([]);
+    const [isLive, setIsLive] = useState(false);
+
+    // Poll real-time metrics from backend
+    useEffect(() => {
+        let isMounted = true;
+
+        const pollMetrics = async () => {
+            try {
+                const data = await fetchRealtimeMetrics();
+                if (isMounted) {
+                    setRealtimeComponents(data.components);
+                    setIsLive(true);
+                }
+            } catch (err) {
+                console.warn('Failed to fetch realtime metrics, using mock data');
+                setIsLive(false);
+            }
+        };
+
+        // Initial fetch
+        pollMetrics();
+
+        // Poll every 2 seconds for real-time updates
+        const interval = setInterval(pollMetrics, 2000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, []);
+
+    const handleRefresh = useCallback(() => {
+        setIsRefreshing(true);
+        setTimeout(() => setIsRefreshing(false), 1500);
+    }, []);
+
+    const handleSystemCheck = () => {
+        setShowSystemCheck(true);
+        setCheckProgress(0);
+        const interval = setInterval(() => {
+            setCheckProgress(prev => {
+                if (prev >= 100) {
+                    clearInterval(interval);
+                    return 100;
+                }
+                return prev + 10;
+            });
+        }, 200);
+    };
+
+    const handleSendMessage = () => {
+        if (!chatInput.trim()) return;
+        const newMsg = { role: 'user' as const, content: chatInput };
+        setMessages(prev => [...prev, newMsg]);
+        setChatInput('');
+
+        // Sim response
+        setTimeout(() => {
+            setMessages(prev => [...prev, {
+                role: 'ai',
+                content: `Command received. Initiating analysis on "${newMsg.content}"...`
+            }]);
+        }, 1000);
+    };
+
+    const handleActionClick = (action: string) => {
+        setMessages(prev => [...prev, {
+            role: 'ai',
+            content: `Executing recommended action: "${action}"...`
+        }]);
+    };
 
     return (
         <div className="h-full flex flex-col gap-2 animate-fade-in overflow-hidden p-1">
@@ -60,8 +192,22 @@ const Dashboard: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] px-2">Refresh</Button>
-                    <Button size="sm" className="h-7 text-[10px] px-2">System Check</Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] px-2 gap-1.5"
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                    >
+                        {isRefreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Refresh'}
+                    </Button>
+                    <Button
+                        size="sm"
+                        className="h-7 text-[10px] px-2"
+                        onClick={handleSystemCheck}
+                    >
+                        System Check
+                    </Button>
                 </div>
             </div>
 
@@ -87,40 +233,59 @@ const Dashboard: React.FC = () => {
 
                             {/* List - Flex Fill */}
                             <div className="flex-1 flex flex-col min-h-0 justify-between">
-                                {MOCK_SYSTEM_COMPONENTS.map((comp, i) => {
-                                    const isHealthy = comp.status === 'healthy';
-                                    const statusColor = isHealthy ? 'hsl(142 71% 45%)' : comp.status === 'degraded' ? 'hsl(48 96% 53%)' : 'hsl(0 84% 60%)';
-                                    return (
-                                        <div key={comp.id} className="group relative grid grid-cols-12 items-center gap-4 py-1 flex-1 min-h-0 border-b border-border/10 last:border-0 hover:bg-muted/10 transition-colors">
-                                            {/* Col 1: Name */}
-                                            <div className="col-span-3">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={cn(
-                                                        "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500",
-                                                        isHealthy ? "bg-green-500" : "bg-red-500 shadow-[0_0_10px_red]"
-                                                    )}></div>
-                                                    <div className="min-w-0">
-                                                        <div className="text-xs font-semibold truncate">{comp.name}</div>
-                                                        <div className="text-[9px] text-muted-foreground font-mono truncate">Uptime: 99.9%</div>
+                                {realtimeComponents.length > 0 ? (
+                                    realtimeComponents.map((comp) => {
+                                        const isHealthy = comp.status === 'healthy';
+                                        const statusColor = isHealthy ? 'hsl(142 71% 45%)' : comp.status === 'degraded' ? 'hsl(48 96% 53%)' : 'hsl(0 84% 60%)';
+                                        return (
+                                            <div
+                                                key={comp.id}
+                                                className="group relative grid grid-cols-12 items-center gap-4 py-1 flex-1 min-h-0 border-b border-border/10 last:border-0 hover:bg-muted/10 transition-colors cursor-pointer"
+                                                onClick={() => setSelectedService({
+                                                    id: comp.id,
+                                                    name: comp.name,
+                                                    status: comp.status,
+                                                    latency: comp.latency,
+                                                    history: comp.history
+                                                })}
+                                            >
+                                                {/* Col 1: Name */}
+                                                <div className="col-span-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={cn(
+                                                            "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500",
+                                                            isHealthy ? "bg-green-500" : comp.status === 'degraded' ? "bg-yellow-500" : "bg-red-500 shadow-[0_0_10px_red]"
+                                                        )}></div>
+                                                        <div className="min-w-0">
+                                                            <div className="text-xs font-semibold truncate">{comp.name}</div>
+                                                            <div className="text-[9px] text-muted-foreground font-mono truncate">
+                                                                {isLive ? `Activity: ${comp.activity}` : 'Uptime: 99.9%'}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Col 2: Wide Waveform - Flexible Height */}
-                                            <div className="col-span-7 h-[80%] bg-secondary/10 rounded-md border border-border/30 group-hover:border-primary/30 transition-colors overflow-hidden relative">
-                                                <div className="absolute inset-x-0 bottom-0 top-0 opacity-80">
-                                                    <HeartbeatLine color={statusColor} />
+                                                {/* Col 2: Wide Waveform - Flexible Height */}
+                                                <div className="col-span-7 h-full bg-secondary/10 rounded-md border border-border/30 group-hover:border-primary/30 transition-colors overflow-hidden relative">
+                                                    <div className="absolute inset-x-0 bottom-0 top-0 opacity-80">
+                                                        <HeartbeatLine color={statusColor} history={comp.history} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Col 3: Stats */}
+                                                <div className="col-span-2 text-right">
+                                                    <div className="font-mono text-xs font-bold text-foreground">{comp.latency}ms</div>
+                                                    <Badge variant={comp.status === 'down' ? 'critical' : comp.status} className="h-3.5 px-1.5 text-[8px] uppercase mt-0.5">{comp.status}</Badge>
                                                 </div>
                                             </div>
-
-                                            {/* Col 3: Stats */}
-                                            <div className="col-span-2 text-right">
-                                                <div className="font-mono text-xs font-bold text-foreground">{comp.latency}ms</div>
-                                                <Badge variant={comp.status === 'down' ? 'critical' : comp.status} className="h-3.5 px-1.5 text-[8px] uppercase mt-0.5">{comp.status}</Badge>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })
+                                ) : (
+                                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs">
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Connecting to backend...
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </Card>
@@ -130,17 +295,21 @@ const Dashboard: React.FC = () => {
                     <Card title="AI Analyst" className="flex-1 min-h-0 flex flex-col overflow-hidden" noPadding>
                         <div className="flex-1 flex flex-col min-h-0">
                             <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                                <div className="flex gap-2">
-                                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs">🤖</div>
-                                    <div className="rounded-lg bg-accent p-2.5 text-[11px] text-foreground leading-relaxed shadow-sm">
-                                        Checking system logs... Detected anomalous root access attempt on <strong>db-shard-04</strong>. Suggest immediate isolation.
+                                {messages.map((msg, idx) => (
+                                    <div key={idx} className={cn("flex gap-2", msg.role === 'user' ? "justify-end" : "")}>
+                                        {msg.role === 'ai' && (
+                                            <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs">🤖</div>
+                                        )}
+                                        <div className={cn(
+                                            "rounded-lg p-2.5 text-[11px] leading-relaxed shadow-sm max-w-[90%]",
+                                            msg.role === 'ai'
+                                                ? "bg-accent text-foreground"
+                                                : "bg-primary/10 text-foreground border border-primary/20"
+                                        )}>
+                                            {msg.content}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex gap-2 justify-end">
-                                    <div className="rounded-lg bg-primary/10 p-2.5 text-[11px] text-foreground leading-relaxed max-w-[90%] border border-primary/20">
-                                        Isolate the host and run diagnostics.
-                                    </div>
-                                </div>
+                                ))}
                             </div>
                             <div className="p-2 border-t border-border bg-card/50 shrink-0">
                                 <div className="relative">
@@ -149,8 +318,12 @@ const Dashboard: React.FC = () => {
                                         placeholder="Command Arxis..."
                                         value={chatInput}
                                         onChange={(e) => setChatInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                                     />
-                                    <button className="absolute right-2 top-2 text-muted-foreground hover:text-primary">
+                                    <button
+                                        className="absolute right-2 top-2 text-muted-foreground hover:text-primary"
+                                        onClick={handleSendMessage}
+                                    >
                                         <Send className="h-3 w-3" />
                                     </button>
                                 </div>
@@ -208,6 +381,7 @@ const Dashboard: React.FC = () => {
                                 <div
                                     key={alert.id}
                                     className="group flex flex-col gap-0.5 rounded-md border border-border/50 bg-muted/10 p-2 transition-all hover:bg-accent hover:border-primary/20 cursor-pointer justify-center shrink-0 min-h-[45px]"
+                                    onClick={() => setSelectedAlert(alert)}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5">
@@ -243,6 +417,158 @@ const Dashboard: React.FC = () => {
                 </div>
 
             </div>
+
+            {/* Modals */}
+            <Modal
+                isOpen={!!selectedAlert}
+                onClose={() => setSelectedAlert(null)}
+                title="Alert Intelligence"
+                className="max-w-2xl"
+            >
+                {selectedAlert && (
+                    <div className="space-y-6">
+                        <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/30 border border-border/50">
+                            <div className="p-2 bg-red-500/10 rounded-full">
+                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-semibold">{selectedAlert.title}</h3>
+                                <p className="text-xs text-muted-foreground mt-1">{selectedAlert.description}</p>
+                                <div className="flex gap-2 mt-3">
+                                    <Badge variant={selectedAlert.severity} className="uppercase">{selectedAlert.severity}</Badge>
+                                    <Badge variant="outline" className="font-mono">{selectedAlert.asset}</Badge>
+                                    <Badge variant="outline" className="font-mono">{selectedAlert.user}</Badge>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Analysis Trace</h4>
+                            <div className="relative pl-4 border-l-2 border-border/50 space-y-4">
+                                {(selectedAlert.trace || []).map((t, i) => (
+                                    <div key={i} className="relative">
+                                        <div className="absolute -left-[21px] top-1.5 w-3 h-3 rounded-full bg-background border-2 border-primary" />
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-xs font-medium text-primary">{t.agent}</span>
+                                            <p className="text-xs text-foreground/80">{t.action}</p>
+                                            <span className="text-[10px] text-muted-foreground font-mono">{t.timestamp}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(!selectedAlert.trace || selectedAlert.trace.length === 0) && (
+                                    <p className="text-xs text-muted-foreground italic">No trace data available.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recommended Actions</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {(selectedAlert.recommendedActions || []).map((action, i) => (
+                                    <Button
+                                        key={i}
+                                        variant="outline"
+                                        className="justify-start h-auto py-2 px-3 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
+                                        onClick={() => handleActionClick(action)}
+                                    >
+                                        <Shield className="h-3 w-3 mr-2" />
+                                        {action}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={!!selectedService}
+                onClose={() => setSelectedService(null)}
+                title="Service Diagnostics"
+            >
+                {selectedService && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <div className={cn(
+                                "w-3 h-3 rounded-full shadow-[0_0_15px]",
+                                selectedService.status === 'healthy' ? "bg-green-500 shadow-green-500/50" : "bg-red-500 shadow-red-500/50"
+                            )} />
+                            <div className="flex-1">
+                                <h3 className="font-semibold">{selectedService.name}</h3>
+                                <p className="text-xs text-muted-foreground font-mono">ID: {selectedService.id}</p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-2xl font-bold font-mono">{selectedService.latency}ms</div>
+                                <div className="text-xs text-muted-foreground">Current Latency</div>
+                            </div>
+                        </div>
+
+                        <div className="h-32 bg-secondary/10 rounded-md border border-border/50 p-4 flex items-center justify-center relative overflow-hidden">
+                            <HeartbeatLine color={selectedService.status === 'healthy' ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)'} history={selectedService.history} />
+                            <div className="absolute top-2 left-2 text-[9px] text-muted-foreground uppercase tracking-widest">Real-time Metrics</div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="p-2 rounded bg-muted/20">
+                                <div className="text-xs text-muted-foreground">Uptime</div>
+                                <div className="font-mono font-bold text-green-500">99.99%</div>
+                            </div>
+                            <div className="p-2 rounded bg-muted/20">
+                                <div className="text-xs text-muted-foreground">Error Rate</div>
+                                <div className="font-mono font-bold">0.001%</div>
+                            </div>
+                            <div className="p-2 rounded bg-muted/20">
+                                <div className="text-xs text-muted-foreground">Load</div>
+                                <div className="font-mono font-bold">45%</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={showSystemCheck}
+                onClose={() => setShowSystemCheck(false)}
+                title="System Diagnostic Check"
+            >
+                <div className="space-y-6 py-4">
+                    <div className="flex flex-col items-center justify-center gap-4">
+                        {checkProgress < 100 ? (
+                            <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                        ) : (
+                            <CheckCircle2 className="h-12 w-12 text-green-500 animate-in zoom-in-50 duration-300" />
+                        )}
+                        <div className="text-center">
+                            <h3 className="font-semibold">{checkProgress < 100 ? 'Running Diagnostics...' : 'All Systems Operational'}</h3>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {checkProgress < 100 ? `Checking core services and network integrity...` : `Diagnostic completed successfully at ${new Date().toLocaleTimeString()}`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-primary transition-all duration-200 ease-out"
+                                style={{ width: `${checkProgress}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground uppercase font-mono">
+                            <span>Initializing</span>
+                            <span>Verify Config</span>
+                            <span>Check Latency</span>
+                            <span>Done</span>
+                        </div>
+                    </div>
+
+                    {checkProgress === 100 && (
+                        <div className="flex justify-center">
+                            <Button onClick={() => setShowSystemCheck(false)}>Close Report</Button>
+                        </div>
+                    )}
+                </div>
+            </Modal>
+
         </div>
     );
 };

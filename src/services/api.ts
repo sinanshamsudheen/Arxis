@@ -192,6 +192,46 @@ export async function checkHealth(): Promise<{ status: string; timestamp: string
 }
 
 /**
+ * Real-time system component data for heartbeat visualization
+ */
+export interface RealtimeComponent {
+    id: string;
+    name: string;
+    status: 'healthy' | 'degraded' | 'down';
+    latency: number;
+    history: number[];
+    activity: number;
+}
+
+export interface RealtimeMetrics {
+    timestamp: string;
+    components: RealtimeComponent[];
+    summary: {
+        total_logs: number;
+        total_alerts: number;
+        pending_signals: number;
+    };
+}
+
+/**
+ * Fetch real-time system metrics for heartbeat visualization
+ */
+export async function fetchRealtimeMetrics(): Promise<RealtimeMetrics> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/metrics/realtime`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to fetch realtime metrics:', error);
+        throw error;
+    }
+}
+
+/**
  * Ingest a log (for testing)
  */
 export async function ingestLog(log: {
