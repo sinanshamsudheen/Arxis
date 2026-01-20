@@ -1,33 +1,40 @@
 import React from 'react';
-import { clsx } from 'clsx'; // I need to install clsx or utility. I will just use template literals if clsx is not available, but I'll write a simple utility or just use template strings.
-// Actually I didn't install clsx. I'll just use template strings.
+import { cn } from '../../lib/utils';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
     title?: string;
+    description?: string;
     action?: React.ReactNode;
     noPadding?: boolean;
 }
 
 export const Card: React.FC<CardProps> = ({
     title,
+    description,
     action,
     children,
-    className = '',
+    className,
     noPadding = false,
     ...props
 }) => {
     return (
         <div
-            className={`glass-panel rounded-xl overflow-hidden flex flex-col ${className}`}
+            className={cn(
+                "rounded-xl border border-border bg-card text-card-foreground shadow-sm flex flex-col overflow-hidden",
+                className
+            )}
             {...props}
         >
             {(title || action) && (
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-card)]">
-                    {title && <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] m-0">{title}</h3>}
-                    {action && <div>{action}</div>}
+                <div className="flex flex-col space-y-1.5 p-6 pb-4">
+                    <div className="flex items-center justify-between">
+                        {title && <h3 className="font-semibold leading-none tracking-tight">{title}</h3>}
+                        {action && <div>{action}</div>}
+                    </div>
+                    {description && <p className="text-sm text-muted-foreground">{description}</p>}
                 </div>
             )}
-            <div className={noPadding ? 'flex-1 flex flex-col' : 'p-5 flex-1 flex flex-col'}>
+            <div className={cn("flex-1", noPadding ? "p-0" : "p-6 pt-0")}>
                 {children}
             </div>
         </div>

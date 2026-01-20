@@ -1,22 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MOCK_ALERTS } from '../data/mock';
 import { Alert } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { X, Bot, Shield, FileText, CheckCircle, Clock } from 'lucide-react';
+import { X, Bot, Shield, FileText, RefreshCw } from 'lucide-react';
 import './alerts.css';
+import { fetchAlerts } from '../services/api';
 
 const Alerts: React.FC = () => {
     const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+    const [alerts, setAlerts] = useState<Alert[]>(MOCK_ALERTS);
+    const [loading, setLoading] = useState(false);
+    const [usingMockData, setUsingMockData] = useState(true);
+    const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+
+    // Fetch alerts from backend
+    const loadAlerts = async () => {
+        setLoading(true);
+        try {
+            const backendAlerts = await fetchAlerts({ limit: 100 });
+            if (backendAlerts.length > 0) {
+                setAlerts(backendAlerts);
+                setUsingMockData(false);
+            } else {
+                // No alerts from backend yet, use mock data
+                setAlerts(MOCK_ALERTS);
+                setUsingMockData(true);
+            }
+            setLastRefresh(new Date());
+        } catch (error) {
+            console.error('Failed to fetch alerts, using mock data:', error);
+            setAlerts(MOCK_ALERTS);
+            setUsingMockData(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load alerts on mount and poll every 10 seconds
+    useEffect(() => {
+        loadAlerts();
+        const interval = setInterval(loadAlerts, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className="animate-fade-in alerts-page">
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1>Security Alerts</h1>
-                    <p className="text-[var(--text-secondary)]">Manage and investigate security incidents</p>
+                    <p className="text-[var(--text-secondary)]">
+                        Manage and investigate security incidents
+                        <span className="ml-3 text-xs">
+                            {usingMockData ? (
+                                <span className="text-yellow-500">⚠️ Using demo data (backend not connected)</span>
+                            ) : (
+                                <span className="text-green-500">🟢 Live data from backend</span>
+                            )}
+                        </span>
+                    </p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-center">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                        Last refresh: {lastRefresh.toLocaleTimeString()}
+                    </span>
+                    <button
+                        onClick={loadAlerts}
+                        disabled={loading}
+                        className="p-2 hover:bg-[var(--bg-card-hover)] rounded transition-colors"
+                        title="Refresh alerts"
+                    >
+                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    </button>
                     <Button variant="outline">Export CSV</Button>
                     <Button>Run Playbook</Button>
                 </div>
@@ -49,7 +104,7 @@ const Alerts: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {MOCK_ALERTS.map(alert => (
+                        {alerts.map(alert => (
                             <tr key={alert.id} onClick={() => setSelectedAlert(alert)}>
                                 <td><Badge label={alert.severity} variant={alert.severity} /></td>
                                 <td>

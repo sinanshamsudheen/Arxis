@@ -1,43 +1,39 @@
 import React from 'react';
+import { cn } from '../../lib/utils';
 
-type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
-type Status = 'healthy' | 'degraded' | 'down' | 'active' | 'inactive';
+type Variant = 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'critical' | 'high' | 'medium' | 'low' | 'healthy' | 'degraded';
 
-interface BadgeProps {
-    label: string;
-    variant?: Severity | Status;
-    outline?: boolean;
-    className?: string;
+interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+    variant?: Variant;
 }
 
-export const Badge: React.FC<BadgeProps> = ({ label, variant = 'info', outline = false, className = '' }) => {
-    let colorVar = '--severity-info';
+export const Badge: React.FC<BadgeProps> = ({
+    className,
+    variant = 'default',
+    ...props
+}) => {
+    const variants: Record<string, string> = {
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground",
 
-    switch (variant) {
-        case 'critical': colorVar = '--severity-critical'; break;
-        case 'high': colorVar = '--severity-high'; break;
-        case 'medium': colorVar = '--severity-medium'; break;
-        case 'low': colorVar = '--severity-low'; break;
-        case 'healthy': colorVar = '--status-healthy'; break;
-        case 'degraded': colorVar = '--status-degraded'; break;
-        case 'down': colorVar = '--status-down'; break;
-        case 'active': colorVar = '--status-healthy'; break;
-        case 'inactive': colorVar = '--text-muted'; break;
-    }
+        // Severity / Status specific (Custom)
+        critical: "border-transparent bg-red-500/15 text-red-500 hover:bg-red-500/25 border-red-500/20",
+        high: "border-transparent bg-orange-500/15 text-orange-500 hover:bg-orange-500/25 border-orange-500/20",
+        medium: "border-transparent bg-yellow-500/15 text-yellow-500 hover:bg-yellow-500/25 border-yellow-500/20",
+        low: "border-transparent bg-blue-500/15 text-blue-500 hover:bg-blue-500/25 border-blue-500/20",
 
-    // Premium look: Text color is the variable. Background is variable with 10-15% opacity. Flag border is slightly stronger.
+        healthy: "border-transparent bg-green-500/15 text-green-500 hover:bg-green-500/25 border-green-500/20 shadow-[0_0_10px_-4px_rgba(34,197,94,0.5)]",
+        degraded: "border-transparent bg-yellow-500/15 text-yellow-500 hover:bg-yellow-500/25 border-yellow-500/20",
+        down: "border-transparent bg-red-500/15 text-red-500 hover:bg-red-500/25 border-red-500/20",
+    };
 
     return (
-        <span
-            className={`inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${className}`}
-            style={{
-                color: `var(${colorVar})`,
-                backgroundColor: outline ? 'transparent' : `color-mix(in srgb, var(${colorVar}), transparent 90%)`,
-                border: `1px solid color-mix(in srgb, var(${colorVar}), transparent ${outline ? '60%' : '85%'})`,
-                boxShadow: outline ? 'none' : `0 0 10px -4px var(${colorVar})` // Subtle glow
-            }}
-        >
-            {label}
-        </span>
+        <div className={cn(
+            "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+            variants[variant] || variants.default,
+            className
+        )} {...props} />
     );
 };
