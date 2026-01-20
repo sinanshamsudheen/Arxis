@@ -8,8 +8,8 @@
 
 ### 1. Environment Setup
 ```bash
-# Navigate to backend
-cd backend
+# Navigate to server directory
+cd server
 
 # Create and activate conda environment
 conda create -n lokam python=3.11

@@ -2,10 +2,10 @@
 
 ## Quick Start (2 Steps)
 
-### 1. Start Backend (All Components)
+### 1. Start Server (Backend)
 
 ```bash
-cd backend
+cd server
 conda activate lokam  # or your Python environment
 python main.py
 ```
@@ -16,10 +16,11 @@ This single command starts:
 - ✅ Real-time threat detection
 - ✅ Background CrewAI processing
 
-### 2. Start Frontend
+### 2. Start Client (Frontend)
 
 ```bash
 # In a new terminal, from the root directory
+cd client
 npm run dev
 ```
 
