@@ -1,0 +1,124 @@
+.insights-page {
+    padding-bottom: 2rem;
+}
+
+.agents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.agent-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.agent-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--bg-card-hover);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    border: 1px solid var(--border-subtle);
+    color: var(--severity-low);
+}
+
+.agent-role {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.agent-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.agent-section-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+.agent-decisions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.decision-tag {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.agent-output-block {
+    background: #000;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--severity-low);
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+/* Simple Flow Viz */
+.agent-flow-viz {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem 0;
+    overflow-x: auto;
+}
+
+.flow-node {
+    width: 140px;
+    height: 80px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.flow-node:hover {
+    border-color: var(--severity-low);
+    box-shadow: 0 0 15px rgba(0, 122, 255, 0.2);
+}
+
+.flow-node-icon {
+    font-size: 1.2rem;
+    margin-bottom: 0.25rem;
+}
+
+.flow-node-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.flow-arrow {
+    color: var(--text-muted);
+    opacity: 0.5;
+}

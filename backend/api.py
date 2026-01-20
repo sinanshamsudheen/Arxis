@@ -1,0 +1,268 @@
+"""
+Arxis SOC Backend API
+
+Main FastAPI application serving:
+1. Log ingestion endpoint
+2. Frontend data endpoints
+3. System metrics
+
+This is the orchestration layer connecting all components.
+"""
+
+import uuid
+import asyncio
+from datetime import datetime, timezone
+from typing import List, Dict, Any
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from models import SecurityLog, Alert, MetricsSummary, Severity
+from storage import storage
+from detection_engine import detection_engine
+from agents.crew_system import run_agent_analysis
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Background Processing
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async def process_pending_signals():
+    """Background task: Process signals with CrewAI agents."""
+    while True:
+        try:
+            pending = storage.get_pending_signals()
+            
+            for signal_dict in pending:
+                # Convert to DetectionSignal object
+                from models import DetectionSignal
+                signal = DetectionSignal(**signal_dict)
+                
+                print(f"\n🤖 Processing signal {signal.signal_id} with AI agents...")
+                
+                # Run agent analysis (this may take 10-30 seconds)
+                agent_output = run_agent_analysis(signal)
+                
+                # Parse agent output into alert
+                alert = Alert(
+                    alert_id=str(uuid.uuid4()),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    user=signal.user,
+                    threat_type=signal.signal_type.value,
+                    severity=signal.severity,
+                    explanation=agent_output.get("result", "No explanation available"),
+                    recommendation="Review immediately and verify user identity",
+                    agent_trace=agent_output.get("agent_trace", []),
+                    raw_events=[event.model_dump() if hasattr(event, 'model_dump') else event 
+                               for event in signal.events],
+                    metadata={
+                        "signal_id": signal.signal_id,
+                        "agent_success": agent_output.get("success", False),
+                        **signal.metadata
+                    }
+                )
+                
+                # Store alert
+                storage.add_alert(alert)
+                storage.mark_signal_processed(signal.signal_id)
+                
+                print(f"✅ Alert {alert.alert_id} created from signal {signal.signal_id}")
+        
+        except Exception as e:
+            print(f"⚠️  Error in background processing: {e}")
+        
+        # Check every 5 seconds
+        await asyncio.sleep(5)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle."""
+    # Start background task for processing signals
+    task = asyncio.create_task(process_pending_signals())
+    print("✅ Background signal processor started")
+    
+    yield
+    
+    # Shutdown
+    task.cancel()
+    print("🛑 Background processor stopped")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FastAPI Application
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+app = FastAPI(
+    title="Arxis SOC Backend",
+    description="AI-native Security Operations Center POC",
+    version="0.2.0",
+    lifespan=lifespan
+)
+
+# CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Ingestion Endpoint
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@app.post("/logs", status_code=200)
+async def ingest_log(log: SecurityLog):
+    """
+    Ingest a security log.
+    
+    Flow:
+    1. Store log
+    2. Run detection engine
+    3. If signal detected → queue for agent processing
+    """
+    # Store log
+    storage.add_log(log)
+    
+    # Run detection
+    signal = detection_engine.analyze(log)
+    
+    if signal:
+        # Store signal for background processing
+        storage.add_signal(signal)
+        print(f"🚨 Detection: {signal.signal_type.value} for {signal.user}")
+        
+        return {
+            "status": "detected",
+            "signal_type": signal.signal_type.value,
+            "signal_id": signal.signal_id
+        }
+    
+    return {"status": "ok"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Frontend API Endpoints
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@app.get("/alerts", response_model=List[Alert])
+async def get_alerts(
+    severity: str = None,
+    limit: int = 100
+):
+    """
+    Get all alerts, optionally filtered by severity.
+    
+    Query params:
+    - severity: Filter by severity (LOW/MEDIUM/HIGH/CRITICAL)
+    - limit: Max number of alerts to return
+    """
+    if severity:
+        try:
+            sev = Severity(severity.upper())
+            alerts = storage.get_alerts_by_severity(sev)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid severity level")
+    else:
+        alerts = storage.get_all_alerts()
+    
+    # Convert to Alert objects and apply limit
+    alert_objects = [Alert(**alert) for alert in alerts[-limit:]]
+    
+    return alert_objects
+
+
+@app.get("/alerts/{alert_id}", response_model=Alert)
+async def get_alert(alert_id: str):
+    """
+    Get a specific alert by ID.
+    """
+    alert = storage.get_alert_by_id(alert_id)
+    
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    
+    return Alert(**alert)
+
+
+@app.get("/metrics", response_model=MetricsSummary)
+async def get_metrics():
+    """
+    Get system metrics for dashboard.
+    
+    Returns:
+    - Total logs processed
+    - Total alerts generated
+    - Alerts by severity
+    - Recent activity
+    """
+    metrics = storage.get_metrics()
+    return MetricsSummary(**metrics)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "service": "arxis-soc-backend",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Debug Endpoints (POC only)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@app.get("/debug/logs")
+async def debug_logs(limit: int = 50):
+    """Get recent logs for debugging."""
+    return storage.get_recent_logs(limit)
+
+
+@app.get("/debug/signals")
+async def debug_signals():
+    """Get all signals for debugging."""
+    return {
+        "pending": storage.get_pending_signals(),
+        "total": len(storage.signals)
+    }
+
+
+@app.post("/debug/clear")
+async def debug_clear():
+    """Clear all data (for testing)."""
+    storage.clear_all()
+    return {"status": "cleared"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Entrypoint
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    print("""
+    ╔═══════════════════════════════════════════╗
+    ║                                           ║
+    ║           🛡️  ARXIS SOC BACKEND 🛡️         ║
+    ║                                           ║
+    ║  AI-Native Security Operations Center     ║
+    ║  Powered by CrewAI                        ║
+    ║                                           ║
+    ╚═══════════════════════════════════════════╝
+    """)
+    
+    uvicorn.run(
+        "api:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )

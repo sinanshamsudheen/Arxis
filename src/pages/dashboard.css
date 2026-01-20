@@ -1,0 +1,233 @@
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
+    padding-bottom: 2rem;
+}
+
+/* Specific span assignments for grid items */
+.grid-col-2 {
+    grid-column: span 3;
+}
+
+.grid-col-3 {
+    grid-column: span 4;
+}
+
+.grid-col-4 {
+    grid-column: span 6;
+}
+
+.grid-col-6 {
+    grid-column: span 6;
+}
+
+.grid-col-12 {
+    grid-column: span 12;
+}
+
+/* Assigning areas manually for now via child nth-child or direct classes in component would be better, 
+   but let's stick to the column structure in the CSS to match the React structure */
+
+/* Column containers */
+.col-left {
+    grid-column: span 5;
+    /* 5/12 columns */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.col-mid {
+    grid-column: span 4;
+    /* 4/12 columns */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.col-right {
+    grid-column: span 3;
+    /* 3/12 columns */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dashboard-header {
+    margin-bottom: 2.5rem;
+}
+
+.dashboard-header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
+}
+
+.dashboard-header p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* System Heartbeat Styles */
+.heartbeat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background-color 0.2s ease;
+}
+
+.heartbeat-row:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.heartbeat-row:last-child {
+    border-bottom: none;
+}
+
+.heartbeat-name {
+    width: 140px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.heartbeat-viz {
+    flex: 1;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 1rem;
+    position: relative;
+    overflow: hidden;
+    opacity: 0.8;
+}
+
+.heartbeat-stats {
+    text-align: right;
+    min-width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+}
+
+.heartbeat-latency {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* AI Analyst Styles */
+.ai-chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 420px;
+}
+
+.ai-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.ai-message {
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    max-width: 90%;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.ai-message.ai {
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-subtle);
+    border-bottom-left-radius: 2px;
+    align-self: flex-start;
+    color: var(--text-secondary);
+}
+
+.ai-message.user {
+    background: var(--severity-low);
+    color: white;
+    border-bottom-right-radius: 2px;
+    align-self: flex-end;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ai-input-area {
+    padding: 1rem;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+}
+
+.ai-input {
+    width: 100%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-medium);
+    border-radius: 6px;
+    padding: 0.625rem 0.875rem;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+
+.ai-input:focus {
+    outline: none;
+    border-color: var(--severity-low);
+}
+
+/* Performance Bars */
+.perf-row {
+    margin-bottom: 1.15rem;
+}
+
+.perf-row:last-child {
+    margin-bottom: 0;
+}
+
+.perf-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.perf-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border-medium);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.perf-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease-in-out;
+}
+
+/* Compliance List */
+.compliance-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.compliance-item:last-child {
+    border-bottom: none;
+}
