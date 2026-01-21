@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Alert } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -10,8 +10,15 @@ const Alerts: React.FC = () => {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+    const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Track local modifications that haven't been synced to backend yet
+    // Key: alert ID, Value: partial alert updates
+    const [localModifications, setLocalModifications] = useState<Record<string, Partial<Alert>>>({});
+
+    // Derive selectedAlert from alerts array to ensure it's always in sync
+    const selectedAlert = selectedAlertId ? alerts.find(a => a.id === selectedAlertId) || null : null;
 
     // Filter states
     const [severityFilter, setSeverityFilter] = useState<string | null>(null);
@@ -51,23 +58,38 @@ const Alerts: React.FC = () => {
     const handleTakeOwnership = async () => {
         if (!selectedAlert) return;
 
+        // Track this modification locally so it persists across backend refreshes
+        setLocalModifications(prev => ({
+            ...prev,
+            [selectedAlert.id]: { status: 'investigating' as const }
+        }));
+
         // Update local state immediately for optimistic UI
         const updatedAlerts = alerts.map(a =>
-            a.id === selectedAlert.id ? { ...a, status: 'investigating' } : a
+            a.id === selectedAlert.id ? { ...a, status: 'investigating' as const } : a
         );
         setAlerts(updatedAlerts);
-        setSelectedAlert({ ...selectedAlert, status: 'investigating' });
+        // No need to update selectedAlert separately - it's derived from alerts!
 
         // TODO: Send update to backend API
         // await updateAlertStatus(selectedAlert.id, 'investigating');
+        // On success, remove from localModifications:
+        // setLocalModifications(prev => { const {[selectedAlert.id]: _, ...rest} = prev; return rest; });
     };
 
     // Fetch alerts from API
-    const loadAlerts = async () => {
+    const loadAlerts = useCallback(async () => {
         setRefreshing(true);
         try {
             const data = await fetchAlerts({ limit: 100 });
-            setAlerts(data);
+
+            // Merge backend data with local modifications
+            const mergedAlerts = data.map(alert => {
+                const localMod = localModifications[alert.id];
+                return localMod ? { ...alert, ...localMod } : alert;
+            });
+
+            setAlerts(mergedAlerts);
             setError(null);
         } catch (err) {
             console.error('Failed to load alerts:', err);
@@ -76,7 +98,7 @@ const Alerts: React.FC = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [localModifications]);
 
     // Filter and search alerts
     const filteredAlerts = alerts.filter(alert => {
@@ -110,7 +132,7 @@ const Alerts: React.FC = () => {
         // Auto-refresh every 10 seconds
         const interval = setInterval(loadAlerts, 10000);
         return () => clearInterval(interval);
-    }, []);
+    }, [loadAlerts]);
 
     return (
         <div className="space-y-6 animate-fade-in relative h-[calc(100vh-4rem)] flex flex-col">
@@ -242,7 +264,7 @@ const Alerts: React.FC = () => {
                             filteredAlerts.map((alert: Alert) => (
                                 <tr
                                     key={alert.id}
-                                    onClick={() => setSelectedAlert(alert)}
+                                    onClick={() => setSelectedAlertId(alert.id)}
                                     className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
                                 >
                                     <td className="p-4 align-middle"><Badge variant={alert.severity}>{alert.severity}</Badge></td>
@@ -277,7 +299,7 @@ const Alerts: React.FC = () => {
 
             {/* Detail Overlay */}
             {selectedAlert && (
-                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-40" onClick={() => setSelectedAlert(null)}></div>
+                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-40" onClick={() => setSelectedAlertId(null)}></div>
             )}
 
             <div className={cn(
@@ -294,7 +316,7 @@ const Alerts: React.FC = () => {
                                 </div>
                                 <h2 className="text-2xl font-bold tracking-tight mb-1">{selectedAlert.title}</h2>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setSelectedAlert(null)}>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedAlertId(null)}>
                                 <X className="h-5 w-5" />
                             </Button>
                         </div>
@@ -356,7 +378,7 @@ const Alerts: React.FC = () => {
                         </div>
 
                         <div className="pt-4 border-t border-border mt-auto flex justify-end gap-3 sticky bottom-0 bg-card">
-                            <Button variant="outline" onClick={() => setSelectedAlert(null)}>Close</Button>
+                            <Button variant="outline" onClick={() => setSelectedAlertId(null)}>Close</Button>
                             <Button
                                 onClick={handleTakeOwnership}
                                 disabled={selectedAlert?.status !== 'open'}
