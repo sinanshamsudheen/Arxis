@@ -1,23 +1,137 @@
-import React, { useState } from 'react';
-import { MOCK_ALERTS } from '../data/mock';
+import React, { useState, useEffect } from 'react';
 import { Alert } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { X, Bot, Shield, FileText, CheckCircle, Clock, Search, Filter } from 'lucide-react';
+import { X, Bot, Shield, FileText, Search, Filter, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Card } from '../components/ui/Card';
+import { fetchAlerts } from '../services/api';
 
 const Alerts: React.FC = () => {
+    const [alerts, setAlerts] = useState<Alert[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // Filter states
+    const [severityFilter, setSeverityFilter] = useState<string | null>(null);
+    const [statusFilter, setStatusFilter] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Helper to format timestamps
+    const formatTimestamp = (timestamp: string) => {
+        if (!timestamp) return 'Unknown';
+
+        const date = new Date(timestamp);
+
+        // Check if date is invalid
+        if (isNaN(date.getTime())) {
+            return timestamp; // Return original if can't parse
+        }
+
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+        try {
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch (e) {
+            return timestamp;
+        }
+    };
+
+    // Handle take ownership
+    const handleTakeOwnership = async () => {
+        if (!selectedAlert) return;
+
+        // Update local state immediately for optimistic UI
+        const updatedAlerts = alerts.map(a =>
+            a.id === selectedAlert.id ? { ...a, status: 'investigating' } : a
+        );
+        setAlerts(updatedAlerts);
+        setSelectedAlert({ ...selectedAlert, status: 'investigating' });
+
+        // TODO: Send update to backend API
+        // await updateAlertStatus(selectedAlert.id, 'investigating');
+    };
+
+    // Fetch alerts from API
+    const loadAlerts = async () => {
+        setRefreshing(true);
+        try {
+            const data = await fetchAlerts({ limit: 100 });
+            setAlerts(data);
+            setError(null);
+        } catch (err) {
+            console.error('Failed to load alerts:', err);
+            setError('Failed to load alerts from backend');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    // Filter and search alerts
+    const filteredAlerts = alerts.filter(alert => {
+        // Severity filter
+        if (severityFilter && alert.severity.toLowerCase() !== severityFilter.toLowerCase()) {
+            return false;
+        }
+
+        // Status filter
+        if (statusFilter && alert.status.toLowerCase() !== statusFilter.toLowerCase()) {
+            return false;
+        }
+
+        // Search filter
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            return (
+                alert.title?.toLowerCase().includes(query) ||
+                alert.user?.toLowerCase().includes(query) ||
+                alert.asset?.toLowerCase().includes(query) ||
+                alert.description?.toLowerCase().includes(query)
+            );
+        }
+
+        return true;
+    });
+
+    useEffect(() => {
+        loadAlerts();
+
+        // Auto-refresh every 10 seconds
+        const interval = setInterval(loadAlerts, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className="space-y-6 animate-fade-in relative h-[calc(100vh-4rem)] flex flex-col">
             <div className="flex items-center justify-between shrink-0">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Security Alerts</h1>
-                    <p className="text-muted-foreground mt-1">Manage and investigate security incidents</p>
+                    <p className="text-muted-foreground mt-1">
+                        {loading ? 'Loading alerts...' : `${filteredAlerts.length} of ${alerts.length} ${alerts.length === 1 ? 'alert' : 'alerts'} ${severityFilter || statusFilter || searchQuery ? 'shown' : 'detected'}`}
+                    </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadAlerts()}
+                        disabled={refreshing}
+                        className="gap-2"
+                    >
+                        <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+                        Refresh
+                    </Button>
                     <Button variant="outline">Export CSV</Button>
                     <Button>Run Playbook</Button>
                 </div>
@@ -29,17 +143,57 @@ const Alerts: React.FC = () => {
                     <input
                         type="text"
                         placeholder="Search alerts..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
                 </div>
-                <Button variant="outline" size="sm" className="h-9 gap-2">
-                    <Filter className="h-4 w-4" />
-                    Severity
-                </Button>
-                <Button variant="outline" size="sm" className="h-9 gap-2">
-                    <Filter className="h-4 w-4" />
-                    Status
-                </Button>
+                <div className="relative">
+                    <Button
+                        variant={severityFilter ? "default" : "outline"}
+                        size="sm"
+                        className="h-9 gap-2"
+                        onClick={() => {
+                            // Cycle: null -> critical -> high -> medium -> low -> null
+                            if (!severityFilter) {
+                                setSeverityFilter('critical');
+                            } else if (severityFilter === 'critical') {
+                                setSeverityFilter('high');
+                            } else if (severityFilter === 'high') {
+                                setSeverityFilter('medium');
+                            } else if (severityFilter === 'medium') {
+                                setSeverityFilter('low');
+                            } else {
+                                setSeverityFilter(null);
+                            }
+                        }}
+                    >
+                        <Filter className="h-4 w-4" />
+                        {severityFilter ? `Severity: ${severityFilter}` : 'Severity'}
+                    </Button>
+                </div>
+                <div className="relative">
+                    <Button
+                        variant={statusFilter ? "default" : "outline"}
+                        size="sm"
+                        className="h-9 gap-2"
+                        onClick={() => {
+                            // Cycle: null -> open -> investigating -> resolved -> null
+                            if (!statusFilter) {
+                                setStatusFilter('open');
+                            } else if (statusFilter === 'open') {
+                                setStatusFilter('investigating');
+                            } else if (statusFilter === 'investigating') {
+                                setStatusFilter('resolved');
+                            } else {
+                                setStatusFilter(null);
+                            }
+                        }}
+                    >
+                        <Filter className="h-4 w-4" />
+                        {statusFilter ? `Status: ${statusFilter}` : 'Status'}
+                    </Button>
+                </div>
             </div>
 
             <div className="rounded-md border border-border bg-card flex-1 overflow-auto">
@@ -55,37 +209,68 @@ const Alerts: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="[&_tr:last-child]:border-0">
-                        {MOCK_ALERTS.map(alert => (
-                            <tr
-                                key={alert.id}
-                                onClick={() => setSelectedAlert(alert)}
-                                className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
-                            >
-                                <td className="p-4 align-middle"><Badge variant={alert.severity}>{alert.severity}</Badge></td>
-                                <td className="p-4 align-middle">
-                                    <div className="font-semibold">{alert.title}</div>
-                                    <div className="text-xs text-muted-foreground">{alert.id}</div>
-                                </td>
-                                <td className="p-4 align-middle">
-                                    <div className="text-sm">{alert.asset}</div>
-                                    <div className="text-xs text-muted-foreground">{alert.user}</div>
-                                </td>
-                                <td className="p-4 align-middle">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-1.5 w-16 bg-secondary rounded-full overflow-hidden">
-                                            <div className="h-full bg-green-500" style={{ width: `${alert.confidence}%` }}></div>
-                                        </div>
-                                        <span className="text-xs font-mono">{alert.confidence}%</span>
+                        {loading ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                        <p className="text-sm text-muted-foreground">Loading alerts from CrewAI...</p>
                                     </div>
                                 </td>
-                                <td className="p-4 align-middle">
-                                    <Badge variant={alert.status === 'open' ? 'down' : alert.status === 'investigating' ? 'degraded' : 'healthy'} className="capitalize bg-transparent border">
-                                        {alert.status}
-                                    </Badge>
-                                </td>
-                                <td className="p-4 align-middle font-mono text-xs text-muted-foreground">{alert.timestamp}</td>
                             </tr>
-                        ))}
+                        ) : error ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                        <p className="text-sm text-destructive">{error}</p>
+                                        <Button variant="outline" size="sm" onClick={() => loadAlerts()}>
+                                            Try Again
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : alerts.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                        <p className="text-sm text-muted-foreground">No alerts detected yet</p>
+                                        <p className="text-xs text-muted-foreground">Waiting for CrewAI to analyze security signals...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                            filteredAlerts.map((alert: Alert) => (
+                                <tr
+                                    key={alert.id}
+                                    onClick={() => setSelectedAlert(alert)}
+                                    className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
+                                >
+                                    <td className="p-4 align-middle"><Badge variant={alert.severity}>{alert.severity}</Badge></td>
+                                    <td className="p-4 align-middle">
+                                        <div className="font-semibold">{alert.title}</div>
+                                        <div className="text-xs text-muted-foreground">{alert.id}</div>
+                                    </td>
+                                    <td className="p-4 align-middle">
+                                        <div className="text-sm">{alert.asset}</div>
+                                        <div className="text-xs text-muted-foreground">{alert.user}</div>
+                                    </td>
+                                    <td className="p-4 align-middle">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-1.5 w-16 bg-secondary rounded-full overflow-hidden">
+                                                <div className="h-full bg-green-500" style={{ width: `${alert.confidence}%` }}></div>
+                                            </div>
+                                            <span className="text-xs font-mono">{alert.confidence}%</span>
+                                        </div>
+                                    </td>
+                                    <td className="p-4 align-middle">
+                                        <Badge variant={alert.status === 'open' ? 'down' : alert.status === 'investigating' ? 'degraded' : 'healthy'} className="capitalize bg-transparent border">
+                                            {alert.status}
+                                        </Badge>
+                                    </td>
+                                    <td className="p-4 align-middle font-mono text-xs text-muted-foreground">{formatTimestamp(alert.timestamp)}</td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -129,30 +314,29 @@ const Alerts: React.FC = () => {
                                     <Bot className="h-4 w-4" /> AI Agent Trace
                                 </h3>
                                 <div className="bg-muted/30 p-4 rounded-lg border border-border relative">
-                                    <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-border"></div>
-                                    <div className="space-y-6 relative">
-                                        <div className="flex gap-4">
-                                            <div className="h-8 w-8 shrink-0 rounded-full bg-background border border-border flex items-center justify-center text-lg z-10">📥</div>
-                                            <div>
-                                                <div className="text-sm font-semibold text-primary">Ingestion Agent</div>
-                                                <div className="text-xs text-muted-foreground mt-0.5">Detected anomaly in log stream #402</div>
+                                    {selectedAlert.trace && selectedAlert.trace.length > 0 ? (
+                                        <>
+                                            <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-border"></div>
+                                            <div className="space-y-6 relative">
+                                                {selectedAlert.trace.map((step, index) => (
+                                                    <div key={index} className="flex gap-4">
+                                                        <div className="h-8 w-8 shrink-0 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center text-xs font-bold z-10">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-semibold text-primary">{step.agent}</div>
+                                                            <div className="text-xs text-muted-foreground mt-0.5">{step.action}</div>
+                                                            <div className="text-[10px] text-muted-foreground/60 mt-1 font-mono">{step.timestamp}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-sm text-muted-foreground text-center py-4">
+                                            No agent trace available
                                         </div>
-                                        <div className="flex gap-4">
-                                            <div className="h-8 w-8 shrink-0 rounded-full bg-background border border-border flex items-center justify-center text-lg z-10">🕵️</div>
-                                            <div>
-                                                <div className="text-sm font-semibold text-primary">Threat Analyst</div>
-                                                <div className="text-xs text-muted-foreground mt-0.5">Matched T1068 (Exploitation for Privilege Escalation)</div>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <div className="h-8 w-8 shrink-0 rounded-full bg-background border border-border flex items-center justify-center text-lg z-10">🛡️</div>
-                                            <div>
-                                                <div className="text-sm font-semibold text-primary">SOC Manager</div>
-                                                <div className="text-xs text-muted-foreground mt-0.5">Escalated to human analyst (Severity Threshold met)</div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             </section>
 
@@ -173,7 +357,12 @@ const Alerts: React.FC = () => {
 
                         <div className="pt-4 border-t border-border mt-auto flex justify-end gap-3 sticky bottom-0 bg-card">
                             <Button variant="outline" onClick={() => setSelectedAlert(null)}>Close</Button>
-                            <Button>Take Ownership</Button>
+                            <Button
+                                onClick={handleTakeOwnership}
+                                disabled={selectedAlert?.status !== 'open'}
+                            >
+                                {selectedAlert?.status === 'investigating' ? 'Already Investigating' : 'Take Ownership'}
+                            </Button>
                         </div>
                     </>
                 )}

@@ -94,7 +94,7 @@ function transformBackendAlert(backendAlert: BackendAlert): Alert {
         severity: severityMap[backendAlert.severity] || 'medium',
         title: backendAlert.threat_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
         description: backendAlert.explanation,
-        timestamp: formatTimestamp(backendAlert.timestamp),
+        timestamp: backendAlert.timestamp, // Return raw ISO timestamp, let UI format it
         status: 'open', // Backend doesn't track status yet
         confidence: 95, // High confidence from AI agents
         user: backendAlert.user,

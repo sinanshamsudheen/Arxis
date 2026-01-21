@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { MOCK_ALERTS, MOCK_COMPLIANCE } from '../data/mock';
+import { MOCK_COMPLIANCE } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
 import { ArrowRight, Send, Loader2, CheckCircle2, AlertTriangle, Shield } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
-import { Alert, SystemComponent } from '../types';
+import { Alert } from '../types';
 import { cn } from '../lib/utils';
-import { fetchRealtimeMetrics, RealtimeComponent } from '../services/api';
+import { fetchRealtimeMetrics, RealtimeComponent, fetchAlerts } from '../services/api';
 
 // Dynamic Heartbeat Visualization - generates SVG path from history data
 const HeartbeatLine = ({ color, history }: { color: string; history?: number[] }) => {
@@ -105,11 +105,20 @@ const Dashboard: React.FC = () => {
     const [showSystemCheck, setShowSystemCheck] = useState(false);
     const [checkProgress, setCheckProgress] = useState(0);
     const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
-    const [selectedService, setSelectedService] = useState<SystemComponent | null>(null);
+    const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
     // Real-time system components from backend
     const [realtimeComponents, setRealtimeComponents] = useState<RealtimeComponent[]>([]);
     const [isLive, setIsLive] = useState(false);
+
+    // Live high-priority alerts
+    const [liveAlerts, setLiveAlerts] = useState<Alert[]>([]);
+    const [alertsLoading, setAlertsLoading] = useState(true);
+
+    // Derive active service from real-time data
+    const selectedService = useMemo(() =>
+        realtimeComponents.find(c => c.id === selectedServiceId) || null,
+        [realtimeComponents, selectedServiceId]);
 
     // Poll real-time metrics from backend
     useEffect(() => {
@@ -133,6 +142,37 @@ const Dashboard: React.FC = () => {
 
         // Poll every 2 seconds for real-time updates
         const interval = setInterval(pollMetrics, 2000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, []);
+
+    // Poll high-priority alerts from backend
+    useEffect(() => {
+        let isMounted = true;
+
+        const pollAlerts = async () => {
+            try {
+                // Fetch only high and critical alerts
+                const allAlerts = await fetchAlerts({ limit: 50 });
+                if (isMounted) {
+                    const highPriority = allAlerts.filter(a => ['critical', 'high'].includes(a.severity));
+                    setLiveAlerts(highPriority);
+                    setAlertsLoading(false);
+                }
+            } catch (err) {
+                console.warn('Failed to fetch alerts, using mock data');
+                setAlertsLoading(false);
+            }
+        };
+
+        // Initial fetch
+        pollAlerts();
+
+        // Poll every 5 seconds for new alerts
+        const interval = setInterval(pollAlerts, 5000);
 
         return () => {
             isMounted = false;
@@ -241,13 +281,7 @@ const Dashboard: React.FC = () => {
                                             <div
                                                 key={comp.id}
                                                 className="group relative grid grid-cols-12 items-center gap-4 py-1 flex-1 min-h-0 border-b border-border/10 last:border-0 hover:bg-muted/10 transition-colors cursor-pointer"
-                                                onClick={() => setSelectedService({
-                                                    id: comp.id,
-                                                    name: comp.name,
-                                                    status: comp.status,
-                                                    latency: comp.latency,
-                                                    history: comp.history
-                                                })}
+                                                onClick={() => setSelectedServiceId(comp.id)}
                                             >
                                                 {/* Col 1: Name */}
                                                 <div className="col-span-3">
@@ -377,10 +411,18 @@ const Dashboard: React.FC = () => {
                 <div className="col-span-5 row-span-5 flex flex-col min-h-0">
                     <Card title="High Priority Alerts" className="flex-1 min-h-0 flex flex-col overflow-hidden" noPadding>
                         <div className="flex-1 p-2 flex flex-col gap-1.5 min-h-0 overflow-y-auto">
-                            {MOCK_ALERTS.filter(a => ['critical', 'high'].includes(a.severity)).map(alert => (
+                            {alertsLoading ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : liveAlerts.length === 0 ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <p className="text-xs text-muted-foreground">No high-priority alerts</p>
+                                </div>
+                            ) : liveAlerts.slice(0, 6).map(alert => (
                                 <div
                                     key={alert.id}
-                                    className="group flex flex-col gap-0.5 rounded-md border border-border/50 bg-muted/10 p-2 transition-all hover:bg-accent hover:border-primary/20 cursor-pointer justify-center shrink-0 min-h-[45px]"
+                                    className="group flex flex-col gap-0.5 rounded-md border border-border/50 bg-muted/10 p-2 transition-all hover:bg-accent hover:border-primary/20 cursor-pointer justify-center shrink-0 min-h-[45px] animate-fade-in"
                                     onClick={() => setSelectedAlert(alert)}
                                 >
                                     <div className="flex items-center justify-between">
@@ -483,7 +525,7 @@ const Dashboard: React.FC = () => {
 
             <Modal
                 isOpen={!!selectedService}
-                onClose={() => setSelectedService(null)}
+                onClose={() => setSelectedServiceId(null)}
                 title="Service Diagnostics"
             >
                 {selectedService && (

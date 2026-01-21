@@ -11,9 +11,14 @@ This is the orchestration layer connecting all components.
 
 import uuid
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
