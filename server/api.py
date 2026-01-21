@@ -22,6 +22,7 @@ load_dotenv()
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from models import SecurityLog, Alert, MetricsSummary, Severity
@@ -47,8 +48,8 @@ async def process_pending_signals():
                 
                 print(f"\n🤖 Processing signal {signal.signal_id} with AI agents...")
                 
-                # Run agent analysis (this may take 10-30 seconds)
-                agent_output = run_agent_analysis(signal)
+                # Run agent analysis in threadpool to avoid blocking event loop
+                agent_output = await run_in_threadpool(run_agent_analysis, signal)
                 
                 # Parse agent output into alert
                 alert = Alert(

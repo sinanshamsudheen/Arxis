@@ -75,7 +75,8 @@ def run_log_generator():
                     if data.get("status") == "detected":
                         print(f"   🚨 DETECTION: {data.get('signal_type')}")
             except requests.exceptions.RequestException:
-                print("   ⚠️  API not ready, retrying...")
+                # API busy, minimal noise
+                pass
             
             # Random interval
             time.sleep(random.uniform(1, 3))
