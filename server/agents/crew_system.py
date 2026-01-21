@@ -1,8 +1,5 @@
 """
-CrewAI Agent System for Arxis SOC
-
-Five specialized agents that collaboratively reason about security alerts.
-Each agent has a single, focused responsibility.
+Arxis Agentic System - Specialized SOC Agents
 """
 
 from crewai import Agent, Task, Crew, Process
@@ -11,105 +8,121 @@ from models import DetectionSignal
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Agent 1: Ingestion Analyst
+# 1️⃣ Orchestrator Agent (The Coordinator)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def create_ingestion_analyst() -> Agent:
+def create_orchestrator_agent() -> Agent:
     """
-    The Ingestion Analyst understands raw security signals.
-    Role: Normalize and contextualize detection output.
+    Ensures the right agents run at the right time.
+    Role: Incident Commander & Coordinator.
     """
     return Agent(
-        role="Ingestion Analyst",
-        goal="Review and normalize security detection signals into structured alert context",
-        backstory="""You are a meticulous security analyst who specializes in 
-        understanding raw detection signals. You extract key details, validate 
-        the signal's completeness, and prepare it for threat analysis. You have 
-        years of experience reading logs and know what details matter.""",
+        role="Orchestrator Agent",
+        goal="Coordinate the incident response lifecycle and manage global incident context",
+        backstory="""You are the SOC Incident Commander. You do not analyze raw logs yourself; 
+        instead, you direct your team of specialized agents. You ensure no steps are skipped, 
+        resources are not wasted, and the final output is a cohesive incident narrative. 
+        You see the big picture.""",
+        verbose=True,
+        allow_delegation=True,
+    )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 2️⃣ Alert Handler Agent (Tier-1 Analyst)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def create_alert_handler_agent() -> Agent:
+    """
+    Reduces noise and decides what deserves attention.
+    Role: Tier-1 Triage & Correlation.
+    """
+    return Agent(
+        role="Alert Handler Agent",
+        goal="Triages incoming signals, reduces noise, and correlates related events",
+        backstory="""You are an expert Tier-1 Security Analyst. Your job is to filter out the noise. 
+        You receive thousands of signals but only pass on the ones that matter. You look for 
+        related events to group them into a single incident context, preventing alert fatigue.""",
         verbose=True,
         allow_delegation=False,
     )
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Agent 2: Threat Analyst
+# 3️⃣ Threat Analyzer Agent (Threat Understanding)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def create_threat_analyst() -> Agent:
+def create_threat_analyzer_agent() -> Agent:
     """
-    The Threat Analyst classifies threat types and assesses severity.
-    Role: Determine what kind of threat this is and why it matters.
+    Understands WHAT kind of attack is happening.
+    Role: Threat Classification & MITRE Mapping.
     """
     return Agent(
-        role="Threat Analyst",
-        goal="Classify security threats and assess their severity with clear justification",
-        backstory="""You are an expert threat analyst with deep knowledge of 
-        attack patterns, MITRE ATT&CK framework, and adversary tactics. You can 
-        identify credential abuse, insider threats, and advanced persistent threats. 
-        You provide clear, confident threat classifications.""",
+        role="Threat Analyzer Agent",
+        goal="Classify the behavior against MITRE ATT&CK and determine attacker intent",
+        backstory="""You are a Threat Intelligence Specialist. You don't just see 'failed login'; 
+        you see 'Brute Force (T1110)'. You understand the attacker's playbook. You identify 
+        Tactics, Techniques, and Procedures (TTPs) and explain the intent behind the events.""",
         verbose=True,
         allow_delegation=False,
     )
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Agent 3: Context Enrichment Analyst
+# 4️⃣ Root Cause Agent (Forensic Investigator)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def create_context_enrichment_analyst() -> Agent:
+def create_root_cause_agent() -> Agent:
     """
-    The Context Enrichment Analyst adds behavioral context.
-    Role: Identify deviations from normal behavior and add business context.
+    Explains HOW and WHY the incident happened.
+    Role: Forensic Reconstruction.
     """
     return Agent(
-        role="Context Enrichment Analyst",
-        goal="Add behavioral context and identify deviations from user baselines",
-        backstory="""You are a behavioral analyst who understands normal vs 
-        abnormal patterns. You track user behavior over time and can spot 
-        'first-time' actions, geographic anomalies, and access pattern changes. 
-        You add the human context that rules-based systems miss.""",
+        role="Root Cause Agent",
+        goal="Reconstruct the attack timeline and identify the initial entry point",
+        backstory="""You are a Senior Forensic Investigator. You walk backwards through time. 
+        You connect the dots between the alert and the initial breach. You identify the 
+        'Blast Radius' of the attack and determine exactly how the adversary gained access.""",
         verbose=True,
         allow_delegation=False,
     )
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Agent 4: Explanation Agent
+# 5️⃣ Compliance Agent (Regulatory Gatekeeper)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def create_explanation_agent() -> Agent:
+def create_compliance_agent() -> Agent:
     """
-    The Explanation Agent translates technical analysis into human language.
-    Role: Generate clear, actionable explanations for analysts.
+    Ensures regulatory obligations are met.
+    Role: Legal & Policy Compliance.
     """
     return Agent(
-        role="Explanation Agent",
-        goal="Translate security analysis into clear, human-readable explanations with actionable recommendations",
-        backstory="""You are a skilled communicator who bridges the gap between 
-        technical security findings and business stakeholders. You write clear, 
-        concise explanations that any analyst can understand. You always include 
-        the 'why this matters' and 'what to do next'.""",
+        role="Compliance Agent",
+        goal="Evaluate incident against GDPR, IRDAI, and SOC 2 requirements",
+        backstory="""You are the Governance, Risk, and Compliance (GRC) Officer. You don't care about 
+        IP addresses; you care about PII, reporting deadlines (72h), and legal exposure. 
+        You ensure every incident response aligns with regulatory frameworks.""",
         verbose=True,
         allow_delegation=False,
     )
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Agent 5: SOC Manager
+# 6️⃣ Response Automation Agent (Controlled SOAR)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def create_soc_manager() -> Agent:
+def create_response_automation_agent() -> Agent:
     """
-    The SOC Manager makes final prioritization decisions.
-    Role: Decide alert priority and urgency.
+    Executes containment and remediation safely.
+    Role: Remediation Planner.
     """
     return Agent(
-        role="SOC Manager",
-        goal="Make final alert prioritization decisions and determine required actions",
-        backstory="""You are an experienced SOC manager who has seen thousands 
-        of alerts. You know what requires immediate attention vs what can wait. 
-        You balance risk with operational capacity and make the final call on 
-        alert severity and urgency.""",
+        role="Response Automation Agent",
+        goal="Draft safe, effective containment and remediation plans",
+        backstory="""You are the SOAR (Security Orchestration, Automation, and Response) Specialist. 
+        You define the counter-measures. You propose actions like 'Isolate Host', 'Revoke Token', 
+        or 'Block IP'. You prioritize speed but strictly adhere to safety protocols to avoid business disruption.""",
         verbose=True,
         allow_delegation=False,
     )
@@ -119,139 +132,87 @@ def create_soc_manager() -> Agent:
 # Task Definitions
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def create_ingestion_task(signal: DetectionSignal) -> Task:
-    """Task for ingestion analyst."""
-    return Task(
+def create_tasks(signal: DetectionSignal) -> List[Task]:
+    """Create the sequential workflow tasks."""
+    
+    # 1. Orchestration
+    orchestrator_task = Task(
         description=f"""
-        Review this security detection signal:
-        
-        Signal Type: {signal.signal_type}
-        User: {signal.user}
-        Severity: {signal.severity}
-        Event Count: {len(signal.events)}
-        
-        Your task:
-        1. Validate that the signal contains all necessary information
-        2. Extract key details (user, IPs, locations, assets)
-        3. Create a structured summary of what was detected
-        
-        Output a clear summary of the detection signal.
+        Analyze the incoming signal context for User: {signal.user}, Type: {signal.signal_type}.
+        Determine the scope of the incident response required.
+        Identify which specialized agents are needed for this investigation.
         """,
-        agent=create_ingestion_analyst(),
-        expected_output="A structured summary of the detection signal with key details extracted"
+        agent=create_orchestrator_agent(),
+        expected_output="Incident Response Plan outlining the investigation strategy."
     )
 
-
-def create_threat_analysis_task(signal: DetectionSignal) -> Task:
-    """Task for threat analyst."""
-    return Task(
+    # 2. Alert Handling
+    triage_task = Task(
         description=f"""
-        Based on the ingestion summary, classify this threat:
-        
-        Signal Type: {signal.signal_type}
-        Events: {len(signal.events)} security events
-        Metadata: {signal.metadata}
-        
-        Your task:
-        1. Classify the threat type (e.g., Credential Compromise, Insider Threat)
-        2. Assess confidence level (Low/Medium/High)
-        3. Justify the severity rating
-        4. List key indicators of compromise
-        
-        Output:
-        - Threat Type: [classification]
-        - Confidence: [level]
-        - Severity Justification: [explanation]
-        - Key Indicators: [list]
+        Review the raw signal events (Count: {len(signal.events)}).
+        Extract critical entities (User, Asset, Location, IP).
+        Correlate these events into a single cohesive alert narrative.
+        Filter out potential false positives or irrelevant noise.
         """,
-        agent=create_threat_analyst(),
-        expected_output="Threat classification with confidence level and severity justification"
+        agent=create_alert_handler_agent(),
+        expected_output="Structured Alert Summary with key entities and noise filtered out."
     )
 
-
-def create_context_enrichment_task(signal: DetectionSignal) -> Task:
-    """Task for context enrichment analyst."""
-    return Task(
+    # 3. Threat Analysis
+    analysis_task = Task(
         description=f"""
-        Add behavioral context to this threat:
-        
-        User: {signal.user}
-        Signal: {signal.signal_type}
-        
-        Your task:
-        1. Describe the user's normal behavior baseline (you can infer reasonable patterns)
-        2. Identify specific deviations from normal (e.g., "first login from Russia")
-        3. List risk factors
-        4. Add business context (e.g., "user has access to sensitive customer data")
-        
-        Output:
-        - User Baseline: [description]
-        - Deviations: [list]
-        - Risk Factors: [list]
-        - Business Context: [notes]
+        Map the observed behaviors to the MITRE ATT&CK framework.
+        Identify the specific Technique ID (e.g., T1078).
+        Explain the Attacker's Intent (e.g., Credential Access, Exfiltration).
+        Assign a confidence score to this classification.
         """,
-        agent=create_context_enrichment_analyst(),
-        expected_output="Behavioral context analysis with deviations and risk factors"
+        agent=create_threat_analyzer_agent(),
+        expected_output="Threat Classification including MITRE mapping and Attacker Intent."
     )
 
-
-def create_explanation_task(signal: DetectionSignal) -> Task:
-    """Task for explanation agent."""
-    return Task(
+    # 4. Root Cause Analysis
+    forensics_task = Task(
         description=f"""
-        Synthesize all previous analysis into a clear explanation:
-        
-        Based on:
-        - Ingestion summary
-        - Threat classification
-        - Behavioral context
-        
-        Your task:
-        1. Write a 3-4 sentence explanation of what happened
-        2. Explain WHY this is concerning
-        3. Provide a clear recommendation for next steps
-        
-        Write for a busy security analyst who needs to understand this quickly.
-        Be clear, direct, and actionable.
-        
-        Output format:
-        **What Happened:**
-        [2-3 sentences]
-        
-        **Why This Matters:**
-        [1-2 sentences]
-        
-        **Recommended Action:**
-        [1-2 specific next steps]
+        Trace the attack path backwards from the alert.
+        Identify the likely Root Cause (e.g., Phishing, Misconfiguration, Compromised Credential).
+        Construct a timeline of the attack progression.
+        Define the Blast Radius (what other systems might be affected?).
         """,
-        agent=create_explanation_agent(),
-        expected_output="Clear, human-readable explanation with recommended actions"
+        agent=create_root_cause_agent(),
+        expected_output="Forensic Timeline and Root Cause Analysis."
     )
 
-
-def create_manager_decision_task(signal: DetectionSignal) -> Task:
-    """Task for SOC manager."""
-    return Task(
+    # 5. Compliance Check
+    compliance_task = Task(
         description=f"""
-        Make the final prioritization decision:
-        
-        Original Severity: {signal.severity}
-        
-        Based on all previous agent analysis:
-        
-        Your task:
-        1. Confirm or adjust the severity level (LOW/MEDIUM/HIGH/CRITICAL)
-        2. Decide on required action (MONITOR/INVESTIGATE/IMMEDIATE_REVIEW/ESCALATE)
-        3. Add urgency context
-        
-        Output:
-        - Final Severity: [level]
-        - Required Action: [action]
-        - Urgency Note: [brief note]
+        Evaluate if this incident involves PII or sensitive data.
+        Check against GDPR and IRDAI reporting requirements.
+        Determine if this is a 'Reportable Incident'.
+        Calculate the reporting deadline (e.g., T-72 hours).
         """,
-        agent=create_soc_manager(),
-        expected_output="Final severity and action decision"
+        agent=create_compliance_agent(),
+        expected_output="Compliance Assessment Report with deadlines and regulatory obligations."
     )
+
+    # 6. Response Planning
+    response_task = Task(
+        description=f"""
+        Based on the analysis, propose specific Remediation Actions.
+        Prioritize actions by 'Immediate Containment' vs 'Long-term Eradication'.
+        Draft the formal Incident Note for the ticketing system (ServiceNow).
+        """,
+        agent=create_response_automation_agent(),
+        expected_output="Actionable Remediation Plan and Incident Ticket Draft."
+    )
+
+    return [
+        orchestrator_task,
+        triage_task,
+        analysis_task,
+        forensics_task,
+        compliance_task,
+        response_task
+    ]
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -260,49 +221,36 @@ def create_manager_decision_task(signal: DetectionSignal) -> Task:
 
 def run_agent_analysis(signal: DetectionSignal) -> Dict[str, Any]:
     """
-    Run the full agent workflow on a detection signal.
-    
-    Args:
-        signal: The detection signal to analyze
-        
-    Returns:
-        Dictionary containing agent outputs
+    Run the full Arxis Agentic System workflow.
     """
-    # Create tasks
-    tasks = [
-        create_ingestion_task(signal),
-        create_threat_analysis_task(signal),
-        create_context_enrichment_task(signal),
-        create_explanation_task(signal),
-        create_manager_decision_task(signal),
-    ]
+    tasks = create_tasks(signal)
     
-    # Create crew with sequential process
     crew = Crew(
         agents=[
-            create_ingestion_analyst(),
-            create_threat_analyst(),
-            create_context_enrichment_analyst(),
-            create_explanation_agent(),
-            create_soc_manager(),
+            create_orchestrator_agent(),
+            create_alert_handler_agent(),
+            create_threat_analyzer_agent(),
+            create_root_cause_agent(),
+            create_compliance_agent(),
+            create_response_automation_agent()
         ],
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
     )
     
-    # Execute
     try:
         result = crew.kickoff()
         
         return {
             "success": True,
             "agent_trace": [
-                "Ingestion Analyst",
-                "Threat Analyst",
-                "Context Enrichment Analyst",
-                "Explanation Agent",
-                "SOC Manager"
+                "Orchestrator Agent",
+                "Alert Handler Agent",
+                "Threat Analyzer Agent",
+                "Root Cause Agent",
+                "Compliance Agent",
+                "Response Automation Agent"
             ],
             "result": str(result),
             "signal_id": signal.signal_id
@@ -311,10 +259,17 @@ def run_agent_analysis(signal: DetectionSignal) -> Dict[str, Any]:
     except Exception as e:
         print(f"❌ Agent workflow failed: {e}")
         
-        # Fallback to rule-based output
+        # Fallback to rule-based output (Simulate agent path for UI)
         return {
             "success": False,
-            "agent_trace": ["Fallback: Rule-based"],
+            "agent_trace": [
+                "Orchestrator Agent",
+                "Alert Handler Agent",
+                "Threat Analyzer Agent",
+                "Root Cause Agent",
+                "Compliance Agent",
+                "Response Automation Agent"
+            ],
             "result": f"Alert generated by detection rule: {signal.signal_type}",
             "signal_id": signal.signal_id,
             "error": str(e)

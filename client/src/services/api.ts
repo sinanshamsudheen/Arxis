@@ -72,15 +72,29 @@ function transformBackendAlert(backendAlert: BackendAlert): Alert {
     const asset = firstEvent.asset || backendAlert.metadata?.asset || 'unknown';
 
     // Build trace from agent_trace
-    const trace = backendAlert.agent_trace.map((agent, index) => ({
-        agent,
-        action: index === 0 ? 'Normalized detection signal' :
-            index === 1 ? 'Classified threat type' :
-                index === 2 ? 'Added behavioral context' :
-                    index === 3 ? 'Generated explanation' :
-                        'Made final priority decision',
-        timestamp: `+${index * 150}ms`
-    }));
+    const trace = backendAlert.agent_trace.map((agent, index) => {
+        let action = 'Processed step';
+        const actions = [
+            'Orchestrated incident response strategy',    // Index 0: Orchestrator
+            'Triaged and normalized detection signal',    // Index 1: Alert Handler
+            'Classified threat using MITRE ATT&CK',       // Index 2: Threat Analyzer
+            'Reconstructed attack timeline & root cause', // Index 3: Root Cause
+            'Evaluated regulatory & compliance impact',   // Index 4: Compliance
+            'Drafted automated remediation plan'          // Index 5: Response
+        ];
+
+        if (index < actions.length) {
+            action = actions[index];
+        } else if (agent.includes('Fallback')) {
+            action = 'Rule-based detection fallback';
+        }
+
+        return {
+            agent,
+            action,
+            timestamp: `+${index * 250}ms`
+        };
+    });
 
     // Parse recommended actions from recommendation text
     const recommendedActions = backendAlert.recommendation
