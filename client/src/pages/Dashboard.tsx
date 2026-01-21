@@ -220,6 +220,9 @@ const Dashboard: React.FC = () => {
 
             const data = await response.json();
 
+            // Add 1 second delay for realistic feel
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
             // Replace loading message with actual response
             setMessages(prev => {
                 const msgs = [...prev];
@@ -228,6 +231,7 @@ const Dashboard: React.FC = () => {
             });
         } catch (error) {
             console.error('Chat error:', error);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             setMessages(prev => {
                 const msgs = [...prev];
                 msgs[msgs.length - 1] = {
@@ -258,6 +262,9 @@ const Dashboard: React.FC = () => {
 
             const data = await response.json();
 
+            // Add 1 second delay for realistic feel
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
             // Replace loading with response
             setMessages(prev => {
                 const msgs = [...prev];
@@ -266,6 +273,7 @@ const Dashboard: React.FC = () => {
             });
         } catch (error) {
             console.error('Quick action error:', error);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             setMessages(prev => {
                 const msgs = [...prev];
                 msgs[msgs.length - 1] = {
@@ -388,22 +396,40 @@ const Dashboard: React.FC = () => {
                     </Card>
                 </div>
 
+
                 <div className="col-span-4 row-span-7 flex flex-col min-h-0">
                     <Card title="AI Analyst" className="flex-1 min-h-0 flex flex-col overflow-hidden" noPadding>
-                        <div className="flex-1 flex flex-col min-h-0">
-                            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                            {/* Chat Messages - Scrollable */}
+                            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-3 min-h-0">
                                 {messages.map((msg, idx) => (
-                                    <div key={idx} className={cn("flex gap-2", msg.role === 'user' ? "justify-end" : "")}>
+                                    <div key={idx} className={cn("flex gap-2 items-start", msg.role === 'user' ? "justify-end" : "")}>
                                         {msg.role === 'ai' && (
                                             <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs">🤖</div>
                                         )}
                                         <div className={cn(
-                                            "rounded-lg p-2.5 text-[11px] leading-relaxed shadow-sm max-w-[90%]",
+                                            "rounded-lg p-2.5 text-[11px] leading-relaxed shadow-sm max-w-[85%] whitespace-pre-wrap break-words",
                                             msg.role === 'ai'
                                                 ? "bg-accent text-foreground"
                                                 : "bg-primary/10 text-foreground border border-primary/20"
                                         )}>
-                                            {msg.content}
+                                            {typeof msg.content === 'string' ? (
+                                                // Format markdown-style text
+                                                <div dangerouslySetInnerHTML={{
+                                                    __html: msg.content
+                                                        // Headers (## text -> bold larger text)
+                                                        .replace(/^## (.+)$/gm, '<div class="font-bold text-[13px] mt-2 mb-1">$1</div>')
+                                                        .replace(/^### (.+)$/gm, '<div class="font-semibold text-[12px] mt-1 mb-0.5">$1</div>')
+                                                        // Bold (**text** -> <strong>)
+                                                        .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+                                                        // Code (`text` -> <code>)
+                                                        .replace(/`([^`]+)`/g, '<code class="bg-muted/50 px-1 py-0.5 rounded text-[10px] font-mono">$1</code>')
+                                                        // Line breaks
+                                                        .replace(/\n/g, '<br/>')
+                                                }} />
+                                            ) : (
+                                                msg.content
+                                            )}
                                         </div>
                                     </div>
                                 ))}

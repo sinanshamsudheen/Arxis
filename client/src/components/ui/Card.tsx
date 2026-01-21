@@ -34,7 +34,7 @@ export const Card: React.FC<CardProps> = ({
                     {description && <p className="text-sm text-muted-foreground">{description}</p>}
                 </div>
             )}
-            <div className={cn("flex-1", noPadding ? "p-0" : "p-6 pt-0")}>
+            <div className={cn("flex-1 flex flex-col min-h-0", noPadding ? "p-0" : "p-6 pt-0")}>
                 {children}
             </div>
         </div>
