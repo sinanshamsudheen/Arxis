@@ -219,14 +219,20 @@ curl -X POST http://localhost:8000/chat \
 
 ---
 
-## 🎨 **UI/UX**
+## 🎨 **UI/UX Improvements**
 
-- **Quick Actions**: Prominent buttons for common tasks
-- **Loading States**: Spinner while AI generates response
-- **Error Handling**: Graceful fallback if backend unavailable
-- **Scrollable**: Auto-scroll to latest message
-- **Responsive**: Works on all screen sizes
-- **Accessible**: Keyboard navigation supported
+### **Enhanced Chat Interface**
+- **Markdown Support**: Responses now render rich text including:
+  - **Bold** keywords and headers
+  - `Code` blocks for technical terms
+  - Bulleted and numbered lists for readability
+- **Smart Scrolling**: 
+  - Chat window fills available space and scrolls automatically
+  - Auto-scroll to bottom on new messages
+- **Realistic Interaction**: 
+  - Artificial 1-second delay added to responses
+  - "Thinking..." and "Analyzing..." states with spinner
+- **Layout**: Fixed flexbox constraints to ensure chat stays within bounds
 
 ---
 
