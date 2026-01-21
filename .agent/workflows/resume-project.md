@@ -1,1 +1,0 @@
-/home/zero/.agent/get-shit-done/workflows/resume-project.md
