@@ -134,6 +134,6 @@ export const MOCK_COMPLIANCE: ComplianceItem[] = [
     { name: 'SOC 2 Type II', status: 'compliant' },
     { name: 'ISO 27001', status: 'compliant' },
     { name: 'GDPR', status: 'review_needed', details: 'due in 5 days' },
-    { name: 'HIPAA', status: 'action_required', details: 'Audit failed' },
+    { name: 'IRDAI', status: 'action_required', details: 'Audit pending' },
     { name: 'PCI DSS', status: 'compliant' },
 ];
