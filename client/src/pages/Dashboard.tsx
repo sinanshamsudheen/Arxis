@@ -199,19 +199,82 @@ const Dashboard: React.FC = () => {
         }, 200);
     };
 
-    const handleSendMessage = () => {
+    const handleSendMessage = async () => {
         if (!chatInput.trim()) return;
-        const newMsg = { role: 'user' as const, content: chatInput };
-        setMessages(prev => [...prev, newMsg]);
+        const userMessage = chatInput;
+        setMessages(prev => [...prev, { role: 'user' as const, content: userMessage }]);
         setChatInput('');
 
-        // Sim response
-        setTimeout(() => {
-            setMessages(prev => [...prev, {
-                role: 'ai',
-                content: `Command received. Initiating analysis on "${newMsg.content}"...`
-            }]);
-        }, 1000);
+        // Show loading state
+        setMessages(prev => [...prev, {
+            role: 'ai',
+            content: <>Thinking<Loader2 className="h-3 w-3 animate-spin inline ml-1" />...</>
+        }]);
+
+        try {
+            const response = await fetch('http://localhost:8000/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMessage })
+            });
+
+            const data = await response.json();
+
+            // Replace loading message with actual response
+            setMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { role: 'ai', content: data.response };
+                return msgs;
+            });
+        } catch (error) {
+            console.error('Chat error:', error);
+            setMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = {
+                    role: 'ai',
+                    content: 'Sorry, I couldn\'t connect to the backend. Please check the API is running.'
+                };
+                return msgs;
+            });
+        }
+    };
+
+    const handleQuickAction = async (action: string) => {
+        // Show loading
+        setMessages(prev => [...prev, {
+            role: 'ai',
+            content: <>Analyzing<Loader2 className="h-3 w-3 animate-spin inline ml-1" />...</>
+        }]);
+
+        try {
+            const response = await fetch('http://localhost:8000/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: '',
+                    quick_action: action
+                })
+            });
+
+            const data = await response.json();
+
+            // Replace loading with response
+            setMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { role: 'ai', content: data.response };
+                return msgs;
+            });
+        } catch (error) {
+            console.error('Quick action error:', error);
+            setMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = {
+                    role: 'ai',
+                    content: 'Sorry, I couldn\'t process that action. Please check the backend.'
+                };
+                return msgs;
+            });
+        }
     };
 
     const handleActionClick = (action: string) => {
@@ -345,6 +408,37 @@ const Dashboard: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Quick Actions */}
+                            <div className="px-2 pb-2 border-t border-border/50 pt-2 shrink-0">
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    <button
+                                        className="text-[9px] px-2 py-1.5 rounded border border-border/50 hover:bg-accent hover:border-primary/30 transition-colors text-left truncate"
+                                        onClick={() => handleQuickAction('explain_last')}
+                                    >
+                                        💡 Explain last alert
+                                    </button>
+                                    <button
+                                        className="text-[9px] px-2 py-1.5 rounded border border-border/50 hover:bg-accent hover:border-primary/30 transition-colors text-left truncate"
+                                        onClick={() => handleQuickAction('threat_summary')}
+                                    >
+                                        🎯 Threat summary
+                                    </button>
+                                    <button
+                                        className="text-[9px] px-2 py-1.5 rounded border border-border/50 hover:bg-accent hover:border-primary/30 transition-colors text-left truncate"
+                                        onClick={() => handleQuickAction('recommend_actions')}
+                                    >
+                                        🚀 Recommend actions
+                                    </button>
+                                    <button
+                                        className="text-[9px] px-2 py-1.5 rounded border border-border/50 hover:bg-accent hover:border-primary/30 transition-colors text-left truncate"
+                                        onClick={() => handleQuickAction('system_status')}
+                                    >
+                                        📊 System status
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="p-2 border-t border-border bg-card/50 shrink-0">
                                 <div className="relative">
                                     <input

@@ -13,7 +13,7 @@ import uuid
 import asyncio
 import os
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -210,6 +210,8 @@ async def get_metrics():
     return MetricsSummary(**metrics)
 
 
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -218,6 +220,105 @@ async def health_check():
         "service": "arxis-soc-backend",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+
+class ChatRequest(BaseModel):
+    """Chat request payload."""
+    message: str
+    quick_action: Optional[str] = None  # 'explain_last', 'threat_summary', etc.
+
+
+@app.post("/chat")
+async def chat_with_ai(request: ChatRequest):
+    """
+    Chat with AI security analyst.
+    
+    Supports:
+    - Free-form questions
+    - Quick actions (explain_last, threat_summary, etc.)
+    
+    Returns AI-generated response with context from recent alerts.
+    """
+    try:
+        from chatbot import get_ai_response, get_quick_action_response
+        
+        # Gather context
+        alerts = storage.get_all_alerts()
+        context = {}
+        
+        
+        if alerts:
+            # Get last alert with full details
+            last_alert_dict = alerts[-1]
+            
+            # Extract asset from raw_events or metadata
+            asset = "unknown"
+            if last_alert_dict.get("raw_events") and len(last_alert_dict["raw_events"]) > 0:
+                asset = last_alert_dict["raw_events"][0].get("asset", "unknown")
+            elif last_alert_dict.get("metadata"):
+                asset = last_alert_dict["metadata"].get("asset", "unknown")
+            
+            context["last_alert"] = {
+                "title": last_alert_dict.get("threat_type", "Unknown").replace("_", " ").title(),
+                "severity": last_alert_dict.get("severity", "UNKNOWN"),
+                "user": last_alert_dict.get("user", "unknown"),
+                "asset": asset,
+                "description": last_alert_dict.get("explanation", "No description")
+            }
+            
+            # Get recent alerts (last 10)
+            recent_alerts = []
+            for alert_dict in alerts[-10:]:
+                alert_asset = "unknown"
+                if alert_dict.get("raw_events") and len(alert_dict["raw_events"]) > 0:
+                    alert_asset = alert_dict["raw_events"][0].get("asset", "unknown")
+                    
+                recent_alerts.append({
+                    "title": alert_dict.get("threat_type", "Unknown").replace("_", " ").title(),
+                    "severity": alert_dict.get("severity", "UNKNOWN"),
+                    "user": alert_dict.get("user", "unknown"),
+                    "asset": alert_asset
+                })
+            context["recent_alerts"] = recent_alerts
+            
+            # Alert stats
+            from collections import Counter
+            severity_counts = Counter(a.get("severity") for a in alerts[-20:])
+            context["alert_stats"] = {
+                "total": len(alerts),
+                "critical": severity_counts.get("CRITICAL", 0),
+                "high": severity_counts.get("HIGH", 0),
+                "medium": severity_counts.get("MEDIUM", 0),
+                "low": severity_counts.get("LOW", 0)
+            }
+
+        
+        # Handle quick action or regular message
+        if request.quick_action:
+            response_text = get_quick_action_response(request.quick_action, context)
+        else:
+            response_text = get_ai_response(request.message, context)
+        
+        return {
+            "response": response_text,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "context_used": bool(context)
+        }
+        
+    except ImportError:
+        return {
+            "response": "AI chatbot is not configured. Please check OpenAI API key.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "context_used": False
+        }
+    except Exception as e:
+        print(f"Chat error: {e}")
+        return {
+            "response": f"Sorry, I encountered an error: {str(e)[:100]}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "context_used": False
+        }
+
 
 
 @app.get("/metrics/realtime")
